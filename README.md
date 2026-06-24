@@ -60,7 +60,7 @@ The brute-force difficulty is that this measurement-to-correction loop must happ
 The SH-WFS subdivides the incoming telescope pupil using a **microlens array (MLA)**. Each microlens samples a small subaperture of the pupil and focuses the local wavefront gradient into a spot on a CCD or CMOS detector. The displacement of that spot from a reference position (measured in pixels) is directly proportional to the average **tilt of the wavefront** over that subaperture:
 
 <p align="center">
-  <img src="https://latex.codecogs.com/svg.latex?\Delta%20x_k%20=%20\frac{f_{\text{lens}}}{\lambda}%20\cdot%20\frac{\partial%20\phi}{\partial%20x}\bigg|_{k}" alt="Slope Equation">
+  <img src="https://latex.codecogs.com/svg.latex?\color{white}\Delta%20x_k%20=%20\frac{f_{\text{lens}}}{\lambda}%20\cdot%20\frac{\partial%20\phi}{\partial%20x}\bigg|_{k}" alt="Slope Equation">
 </p>
 
 where $f_{\text{lens}}$ is the microlens focal length, $\lambda$ is the wavelength, and $k$ indexes the subaperture.
@@ -83,7 +83,7 @@ The reconstructed wavefront phase is expanded in Zernike polynomials $Z_j(\rho, 
 The coefficients $a_j$ of this expansion quantify how much of each aberration is present in the measured wavefront:
 
 <p align="center">
-  <img src="https://latex.codecogs.com/svg.latex?\phi(\rho,\theta)%20=%20\sum_{j=1}^{N}%20a_j%20Z_j(\rho,\theta)" alt="Zernike Expansion">
+  <img src="https://latex.codecogs.com/svg.latex?\color{white}\phi(\rho,\theta)%20=%20\sum_{j=1}^{N}%20a_j%20Z_j(\rho,\theta)" alt="Zernike Expansion">
 </p>
 
 ### 3.3 Turbulence Characterization
@@ -91,13 +91,13 @@ The coefficients $a_j$ of this expansion quantify how much of each aberration is
 The **Fried Parameter** $r_0$ is the single most important descriptor of atmospheric turbulence. It represents the diameter of the aperture over which the wavefront is coherent — a large $r_0$ means weak turbulence, a small $r_0$ means strong turbulence. We estimate it from Noll's theoretical variance of the Tip/Tilt Zernike coefficients:
 
 <p align="center">
-  <img src="https://latex.codecogs.com/svg.latex?r_0%20=%20D%20\left(%20\frac{0.448}{\sigma_{tt}^2}%20\right)^{3/5}" alt="Fried Parameter">
+  <img src="https://latex.codecogs.com/svg.latex?\color{white}r_0%20=%20D%20\left(%20\frac{0.448}{\sigma_{tt}^2}%20\right)^{3/5}" alt="Fried Parameter">
 </p>
 
 The **Atmospheric Coherence Time** $\tau_0$ is estimated as the lag at which the normalized temporal autocorrelation of the Tip/Tilt residuals drops to $1/e$:
 
 <p align="center">
-  <img src="https://latex.codecogs.com/svg.latex?\tau_0%20=%20\arg_t%20\left\{%20\frac{R(\Delta%20t)}{R(0)}%20=%20e^{-1}%20\right\}" alt="Coherence Time">
+  <img src="https://latex.codecogs.com/svg.latex?\color{white}\tau_0%20=%20\arg_t%20\left\{%20\frac{R(\Delta%20t)}{R(0)}%20=%20e^{-1}%20\right\}" alt="Coherence Time">
 </p>
 
 ---
@@ -189,7 +189,7 @@ The `valid_mask` is loaded once from a pre-computed calibration CSV. During proc
 For each valid subaperture $k$, the C-Engine extracts a bounding box from the flattened pixel array and computes:
 
 <p align="center">
-  <img src="https://latex.codecogs.com/svg.latex?\bar{x}_k=\frac{\sum_{i,j}x_{ij}%20I_{ij}}{\sum_{ij}I_{ij}},\quad\bar{y}_k=\frac{\sum_{i,j}y_{ij}%20I_{ij}}{\sum_{ij}I_{ij}}" alt="CoG Equation">
+  <img src="https://latex.codecogs.com/svg.latex?\color{white}\bar{x}_k=\frac{\sum_{i,j}x_{ij}%20I_{ij}}{\sum_{ij}I_{ij}},\quad\bar{y}_k=\frac{\sum_{i,j}y_{ij}%20I_{ij}}{\sum_{ij}I_{ij}}" alt="CoG Equation">
 </p>
 
 The slope is the displacement from the pre-stored reference centroid. The inner loop is fully unrolled over fixed subaperture size, avoiding branch prediction misses. The result is a flat slope vector `S[2 * n_valid]` in row-major order (all X slopes followed by all Y slopes).
@@ -265,7 +265,7 @@ The deformable mirror is poked with a known unit stroke on each actuator in sequ
 The **Pseudo-Inverse** (or Control Matrix) $G^{+}$ is computed via Singular Value Decomposition (SVD) with modal truncation to suppress noise amplification:
 
 <p align="center">
-  <img src="https://latex.codecogs.com/svg.latex?G^{+}%20=%20V%20\Sigma^{-1}%20U^{T}" alt="Pseudo-inverse SVD">
+  <img src="https://latex.codecogs.com/svg.latex?\color{white}G^{+}%20=%20V%20\Sigma^{-1}%20U^{T}" alt="Pseudo-inverse SVD">
 </p>
 
 This matrix maps slopes directly to Zernike coefficients at runtime with a single matrix multiply.
