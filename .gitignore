@@ -6,5 +6,4 @@ build/
 .env
 .DS_Store
 .tmp.driveupload/
-data/dataset/
-notebooks/.ipynb_checkpoints/
+*.fits

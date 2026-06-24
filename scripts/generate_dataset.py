@@ -6,11 +6,11 @@ Output: 500 .bmp frames + ground_truth.csv (500 x 20 Zernike coefficients).
 """
 import numpy as np, os
 from PIL import Image
-from oopao.Telescope import Telescope
-from oopao.Source import Source
-from oopao.ShackHartmann import ShackHartmann
-from oopao.DeformableMirror import DeformableMirror
-from oopao.Atmosphere import Atmosphere
+from OOPAO.Telescope import Telescope
+from OOPAO.Source import Source
+from OOPAO.ShackHartmann import ShackHartmann
+from OOPAO.DeformableMirror import DeformableMirror
+from OOPAO.Atmosphere import Atmosphere
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'dataset')
 os.makedirs(DATA_DIR, exist_ok=True)

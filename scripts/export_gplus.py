@@ -11,20 +11,20 @@ import numpy as np, os
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'dataset')
 os.makedirs(DATA_DIR, exist_ok=True)
 
-from oopao.calibration.CalibrationVault import CalibrationVault
-from oopao.Telescope import Telescope
-from oopao.Source import Source
-from oopao.ShackHartmann import ShackHartmann
-from oopao.DeformableMirror import DeformableMirror
-from oopao.Atmosphere import Atmosphere
+from OOPAO.calibration.CalibrationVault import CalibrationVault
+from OOPAO.Telescope import Telescope
+from OOPAO.Source import Source
+from OOPAO.ShackHartmann import ShackHartmann
+from OOPAO.DeformableMirror import DeformableMirror
+from OOPAO.Atmosphere import Atmosphere
 
-tel  = Telescope(8.0, 20)
+tel  = Telescope(resolution=400, diameter=8.0)
 src  = Source('K', magnitude=8); src * tel
-atm  = Atmosphere(tel, r0=0.15, L0=25, fractionalR0=[1.0], windSpeed=[10], windDirection=[0])
-atm  + tel
+atm  = Atmosphere(telescope=tel, r0=0.15, L0=25, fractionalR0=[1.0], windSpeed=[10], windDirection=[0], altitude=[0], src=src)
+atm.initializeAtmosphere(tel)
 dm   = DeformableMirror(tel, nSubap=21, mechCoupling=0.35)
 wfs  = ShackHartmann(nSubap=20, telescope=tel, lightRatio=0.5)
-calib = CalibrationVault(wfs, dm, ampli=0.01)
+calib = CalibrationVault(calib=[wfs, dm])
 
 np.savetxt(os.path.join(DATA_DIR, 'g_plus.csv'),      calib.M,   delimiter=',', fmt='%.8e')
 np.savetxt(os.path.join(DATA_DIR, 'dm_coupling.csv'), calib.D.T, delimiter=',', fmt='%.8e')

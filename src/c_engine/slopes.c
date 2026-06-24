@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include "geometry.h"
 
+#include <math.h>
+
 /**
  * compute_slopes - Center of Gravity centroiding over valid subapertures.
  */
@@ -11,13 +13,14 @@ void compute_slopes(const float *img_data,
                     int          n_valid,
                     int          sub_px)
 {
-    int img_cols = sub_px * (int)(n_sub > 0 ? 20 : 1);
+    int N_1d = (int)sqrt((double)n_sub);
+    int img_cols = sub_px * N_1d;
     int valid_idx = 0;
 
     for (int k = 0; k < n_sub; k++) {
         if (!valid_mask[k]) continue;
-        int row0 = (k / 20) * sub_px;
-        int col0 = (k % 20) * sub_px;
+        int row0 = (k / N_1d) * sub_px;
+        int col0 = (k % N_1d) * sub_px;
         float sum_I = 0.0f, sum_xI = 0.0f, sum_yI = 0.0f;
         for (int dy = 0; dy < sub_px; dy++) {
             for (int dx = 0; dx < sub_px; dx++) {

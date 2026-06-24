@@ -1,5 +1,5 @@
 CC     = gcc
-CFLAGS = -O3 -march=native -ffast-math -Wall -Wextra -std=c99 -fPIC
+CFLAGS = -O2 -Wall -Wextra -std=c99 -fPIC
 SRC    = slopes.c mvm_reconstructor.c
 OUT    = ../../build/c_engine.so
 
