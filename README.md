@@ -28,6 +28,7 @@
 11. [Running the Project](#11-running-the-project)
 12. [Project Structure](#12-project-structure)
 13. [Future Work](#13-future-work)
+14. [Academic References & Literature](#14-academic-references--literature)
 
 ---
 
@@ -69,7 +70,7 @@ For a 20x20 MLA, this gives up to 400 slope measurements (316 valid after exclud
 
 ### 3.2 Zernike Polynomials
 
-The reconstructed wavefront phase is expanded in Zernike polynomials $Z_j(\rho, \theta)$ — a complete, orthonormal basis over the unit disk. The lowest-order modes have direct physical interpretations:
+Following the formalism introduced by **Noll (1976)**, the reconstructed wavefront phase is expanded in Zernike polynomials $Z_j(\rho, \theta)$ — a complete, orthonormal basis over the unit disk. The lowest-order modes have direct physical interpretations:
 
 | Zernike Mode | Physical Meaning |
 | :--- | :--- |
@@ -88,13 +89,13 @@ The coefficients $a_j$ of this expansion quantify how much of each aberration is
 
 ### 3.3 Turbulence Characterization
 
-The **Fried Parameter** $r_0$ is the single most important descriptor of atmospheric turbulence. It represents the diameter of the aperture over which the wavefront is coherent — a large $r_0$ means weak turbulence, a small $r_0$ means strong turbulence. We estimate it from Noll's theoretical variance of the Tip/Tilt Zernike coefficients:
+The **Fried Parameter** $r_0$ (**Fried, 1966**) is the single most important descriptor of atmospheric turbulence. It represents the diameter of the aperture over which the wavefront is coherent — a large $r_0$ means weak turbulence, a small $r_0$ means strong turbulence. We estimate it from Noll's theoretical variance of the Tip/Tilt Zernike coefficients under Kolmogorov turbulence statistics:
 
 <p align="center">
   <img src="https://latex.codecogs.com/svg.latex?\color{white}r_0%20=%20D%20\left(%20\frac{0.448}{\sigma_{tt}^2}%20\right)^{3/5}" alt="Fried Parameter">
 </p>
 
-The **Atmospheric Coherence Time** $\tau_0$ is estimated as the lag at which the normalized temporal autocorrelation of the Tip/Tilt residuals drops to $1/e$:
+Assuming **Taylor's Frozen-Flow Hypothesis** (Taylor, 1938), the **Atmospheric Coherence Time** $\tau_0$ is estimated as the lag at which the normalized temporal autocorrelation of the Tip/Tilt residuals drops to $1/e$:
 
 <p align="center">
   <img src="https://latex.codecogs.com/svg.latex?\color{white}\tau_0%20=%20\arg_t%20\left\{%20\frac{R(\Delta%20t)}{R(0)}%20=%20e^{-1}%20\right\}" alt="Coherence Time">
@@ -453,6 +454,18 @@ The following extensions are identified for subsequent phases of Project Radius:
 5. **Pyramid WFS Support:** The centroiding layer is modular; a new `pyramid_slopes.c` module implementing the optical gain correction and signal extraction for a Pyramid WFS can be slotted in without modifying the MVM reconstructor or DM mapping layers.
 
 6. **Telemetry Logging:** Implement a lightweight binary ring-buffer telemetry stream so that all slope vectors, Zernike coefficients, and DM commands are archived to disk continuously for post-analysis without impacting the real-time loop.
+
+---
+
+## 14. Academic References & Literature
+
+The mathematical and physical models implemented in the C-Engine are drawn from the foundational literature in adaptive optics:
+
+1. **Fried, D. L. (1966).** "Optical Resolution Through a Randomly Inhomogeneous Medium for Very Long and Very Short Exposures." *Journal of the Optical Society of America*, 56(10), 1372-1379. (Derivation of the atmospheric coherence length $r_0$).
+2. **Noll, R. J. (1976).** "Zernike polynomials and atmospheric turbulence." *Journal of the Optical Society of America*, 66(3), 207-211. (Theoretical variances of Zernike coefficients over Kolmogorov turbulence).
+3. **Hardy, J. W. (1998).** *Adaptive Optics for Astronomical Telescopes.* Oxford University Press. (Comprehensive review of Shack-Hartmann WFS and control matrix generation).
+4. **Roddier, F. (1999).** *Adaptive Optics in Astronomy.* Cambridge University Press. (SVD truncation strategies for interaction matrices).
+5. **Taylor, G. I. (1938).** "The Spectrum of Turbulence." *Proceedings of the Royal Society of London. Series A*, 164(919), 476-490. (Frozen-flow hypothesis used in estimating the coherence time $\tau_0$).
 
 ---
 
