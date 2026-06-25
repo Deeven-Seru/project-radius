@@ -1,5 +1,5 @@
 import aotpy
-system = aotpy.AOSystem.read_from_file("ERIS_NGS.fits")
+system = aotpy.AOSystem.read_from_file("data/ERIS_NGS.fits")
 
 print(f"System: {system.name}")
 print(f"Number of WFS: {len(system.wavefront_sensors)}")
