@@ -26,7 +26,7 @@ def main():
     
     n_valid = int(valid_mask.sum())
     n_slopes = 2 * n_valid
-    n_zernike = 20
+    n_zernike = g_plus.shape[0]
     n_act = 357
     
     # Load C-Engine
@@ -87,7 +87,7 @@ def main():
             print(f"Z{mode+1:<7d} | {val_gt:+19.6e} | {val_pred:+19.6e} | {diff:14.6e}")
             
     print("\n" + "="*50)
-    print("PER-MODE ACCURACY METRICS (Z2 to Z20)")
+    print(f"PER-MODE ACCURACY METRICS (Z2 to Z{n_zernike})")
     print("="*50)
     print(f"{'Mode':<8} | {'MSE':<12} | {'R2 Score':<10}")
     print("-"*36)

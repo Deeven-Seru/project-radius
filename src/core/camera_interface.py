@@ -14,13 +14,14 @@ class CameraInterface:
 
 # 1. Simulated Live Camera interface
 class SimulatedCameraInterface(CameraInterface):
-    def __init__(self, resolution=400, diameter=8.0, n_subap=20, fps=1000.0, r0=0.15, L0=25.0):
+    def __init__(self, resolution=400, diameter=8.0, n_subap=20, fps=1000.0, r0=0.15, L0=25.0, n_zernike=55):
         self.resolution = resolution
         self.diameter = diameter
         self.n_subap = n_subap
         self.fps = fps
         self.r0 = r0
         self.L0 = L0
+        self.n_zernike = n_zernike
         
         self.frame_queue = queue.Queue(maxsize=10)
         self.running = False
@@ -47,7 +48,7 @@ class SimulatedCameraInterface(CameraInterface):
         self.src * self.tel
         
         # Initialize Zernike basis
-        self.zernike_basis = Zernike(self.tel, J=20)
+        self.zernike_basis = Zernike(self.tel, J=self.n_zernike)
         self.zernike_basis.computeZernike(self.tel, remove_piston=0)
         self.z_norm = np.sum(self.zernike_basis.modes**2, axis=0)
 

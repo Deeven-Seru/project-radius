@@ -23,7 +23,7 @@ BUILD_DIR = os.path.join(BASE, 'build')
 def run_reconstruction(lib, frames, valid_mask, ref_slopes, g_plus, ground_truth, modifier_func=None):
     n_valid = int(valid_mask.sum())
     n_slopes = 2 * n_valid
-    n_zernike = 20
+    n_zernike = g_plus.shape[0]
     
     slopes_buf = np.zeros(n_slopes, dtype=np.float32)
     zernikes = np.zeros(n_zernike, dtype=np.float32)

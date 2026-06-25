@@ -53,7 +53,7 @@ def main():
         
     n_valid = int(valid_mask.sum())
     n_slopes = 2 * n_valid
-    n_zernike = 20
+    n_zernike = g_plus.shape[0]
     n_act = 357
     sub_px = 20 # 400 / 20 = 20
     
@@ -75,8 +75,8 @@ def main():
     
     # 3. Setup Camera Interface
     if args.mode == 'sim':
-        print(f"Spawning simulated camera thread at {args.fps} Hz loop rate...")
-        cam = SimulatedCameraInterface(resolution=400, diameter=8.0, n_subap=20, fps=args.fps)
+        print(f"Spawning simulated camera thread at {args.fps} Hz loop rate with {n_zernike} Zernike modes...")
+        cam = SimulatedCameraInterface(resolution=400, diameter=8.0, n_subap=20, fps=args.fps, n_zernike=n_zernike)
     elif args.mode == 'playback':
         print(f"Spawning playback camera thread from {DATA_DIR} at {args.fps} Hz...")
         cam = PlaybackCameraInterface(data_dir=DATA_DIR, fps=args.fps)

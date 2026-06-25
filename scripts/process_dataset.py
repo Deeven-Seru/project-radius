@@ -13,11 +13,12 @@ BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 DATA = os.path.join(BASE, 'data', 'dataset')
 BUILD= os.path.join(BASE, 'build')
 
-N_ZERNIKE, N_ACT, FPS, D = 20, 357, 100.0, 8.0
+N_ACT, FPS, D = 357, 100.0, 8.0
 
 def main():
     print("="*60 + "\nProject Radius: Processing Synthetic WFS Dataset\n" + "="*60)
     g_plus      = np.loadtxt(os.path.join(DATA,'g_plus.csv'),      delimiter=',').astype(np.float32)
+    N_ZERNIKE   = g_plus.shape[0]
     dm_coupling = np.loadtxt(os.path.join(DATA,'dm_coupling.csv'), delimiter=',').astype(np.float32)
     valid_mask  = np.loadtxt(os.path.join(DATA,'valid_mask.csv'),  delimiter=',').astype(np.int32)
     ground_truth= np.loadtxt(os.path.join(DATA,'ground_truth.csv'),delimiter=',').astype(np.float32)

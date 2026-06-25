@@ -33,7 +33,7 @@ wfs  = ShackHartmann(nSubap=20, telescope=tel, lightRatio=0.5)
 src.reset()
 src * tel
 
-n_zernike = 20
+n_zernike = 55
 Z = Zernike(tel, J=n_zernike)
 Z.computeZernike(tel, remove_piston=0)
 z_norm = np.sum(Z.modes**2, axis=0)

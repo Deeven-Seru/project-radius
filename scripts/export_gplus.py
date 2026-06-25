@@ -29,7 +29,7 @@ wfs  = ShackHartmann(nSubap=20, telescope=tel, lightRatio=0.5)
 src.reset()
 src * tel
 
-n_zernike = 20
+n_zernike = 55
 n_slopes = wfs.nSignal
 n_valid = wfs.nValidSubaperture
 sub_px = 20 # 400 / 20 = 20
