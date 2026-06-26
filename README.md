@@ -6,8 +6,8 @@
 **High-Performance Adaptive Optics C-Engine for Shack-Hartmann Wavefront Sensing**
 
 <p align="left">
-  <img src="https://img.shields.io/badge/Accuracy-98.18%25-success.svg" alt="Accuracy">
-  <img src="https://img.shields.io/badge/Latency-0.044_ms-blue.svg" alt="Latency">
+  <img src="https://img.shields.io/badge/Accuracy-99.49%25-success.svg" alt="Accuracy">
+  <img src="https://img.shields.io/badge/Latency-0.31_ms-blue.svg" alt="Latency">
   <img src="https://img.shields.io/badge/C--Engine-Optimized-orange.svg" alt="C-Engine">
   <img src="https://img.shields.io/badge/ISRO-Compliant-brightgreen.svg" alt="ISRO Compliant">
   <img src="https://img.shields.io/badge/Language-C%20%7C%20Python-lightgrey.svg" alt="Language">
@@ -24,20 +24,22 @@
 4. [Project Scope](#4-project-scope)
 5. [Technical Approach and Architecture](#5-technical-approach-and-architecture)
 6. [Implementation: The C-Engine in Detail](#6-implementation-the-c-engine-in-detail)
-7. [Dataset Generation with OOPAO](#7-dataset-generation-with-oopao)
-8. [Calibration Pipeline](#8-calibration-pipeline)
-9. [Results and Achievements](#9-results-and-achievements)
-10. [Visualizations](#10-visualizations)
-11. [Running the Project](#11-running-the-project)
-12. [Project Structure](#12-project-structure)
-13. [Future Work](#13-future-work)
-14. [Academic References & Literature](#14-academic-references--literature)
+7. [Live Camera & Frame Grabber Integration (GenICam & Camera Link)](#7-live-camera--frame-grabber-integration-genicam--camera-link)
+8. [Dataset Generation with OOPAO](#8-dataset-generation-with-oopao)
+9. [Calibration Pipeline](#9-calibration-pipeline)
+10. [Results and Achievements](#10-results-and-achievements)
+11. [Unbiased Real-World Robustness Analysis](#11-unbiased-real-world-robustness-analysis)
+12. [Visualizations](#12-visualizations)
+13. [Running the Project](#13-running-the-project)
+14. [Project Structure](#14-project-structure)
+15. [Future Work](#15-future-work)
+16. [Academic References & Literature](#16-academic-references--literature)
 
 ---
 
 ## 1. What is Project Radius?
 
-Project Radius is a standalone, deterministic, ultra-low-latency **Adaptive Optics (AO) processing pipeline** built for ISRO's laboratory wavefront sensing objectives. It ingests raw detector images from a Shack-Hartmann Wavefront Sensor (SH-WFS), extracts wavefront gradients, reconstructs the phase as Zernike polynomial coefficients, generates physical actuator stroke commands for a Deformable Mirror (DM), and characterizes the atmospheric turbulence — all inside a **C-Engine** that completes the end-to-end computation in **0.044 milliseconds per frame**.
+Project Radius is a standalone, deterministic, ultra-low-latency **Adaptive Optics (AO) processing pipeline** built for space situational awareness and laboratory wavefront sensing. It ingests raw detector images from a Shack-Hartmann Wavefront Sensor (SH-WFS), extracts wavefront gradients, reconstructs the phase as Zernike polynomial coefficients, generates physical actuator stroke commands for a Deformable Mirror (DM), and characterizes the atmospheric turbulence — all inside a **C-Engine** that completes the end-to-end computation in **0.31 milliseconds per frame** for **55 Zernike modes**.
 
 The system is deliberately built on first principles: no machine learning, no black-box inference. Every operation maps directly to an equation in optical physics or linear algebra. The result is a pipeline that is fully explainable, independently verifiable, and capable of running on modest embedded hardware without GPU acceleration.
 
@@ -108,27 +110,21 @@ Assuming **Taylor's Frozen-Flow Hypothesis** (Taylor, 1938), the **Atmospheric C
 
 ## 4. Project Scope
 
-Project Radius covers the following end-to-end scope, as mandated by the ISRO laboratory AO system requirements:
+Project Radius covers the following end-to-end scope, matching space situational awareness and laboratory AO system requirements:
 
 | Scope Item | Specification |
 | :--- | :--- |
 | Sensor Model | Shack-Hartmann WFS, 20 x 20 subaperture grid |
 | Valid Subapertures | 316 of 400 (circular pupil mask) |
-| Detector Resolution | 200 x 200 pixel detector per BMP frame |
+| Detector Resolution | 400 x 400 pixel detector per BMP frame |
 | Telescope Aperture | 8-meter primary (simulation), configurable |
-| Zernike Modes Reconstructed | 20 (Piston through 5th radial order) |
+| Zernike Modes Reconstructed | 55 (Piston through 9th radial order) |
 | Deformable Mirror | 357-actuator continuous facesheet |
 | Turbulence Model | Von Karman ($r_0 = 15$ cm, $L_0 = 25$ m) |
 | Dataset Size | 500 telemetry frames at 100 Hz |
 | Latency Requirement | < 10 ms per frame |
 | Accuracy Requirement | > 95% R² against ground truth |
 | Output | Zernike coefficients, DM actuator strokes, $r_0$, $\tau_0$ |
-
-Items **outside** the current scope (planned for future iterations):
-- Closed-loop DM feedback control
-- Real-time hardware camera interface (GenICam / Camera Link)
-- Pyramid wavefront sensor support
-- Neural-network-based reconstruction for higher-order modes
 
 ---
 
@@ -144,12 +140,12 @@ Python serves exclusively as the orchestration layer: loading files, initializin
 
 ```mermaid
 graph TD
-    A["Raw .bmp telemetry frame\n(200x200 pixels, 8-bit)"]
-    B["Python: load frame, flatten to 1D array,\npass pointer via ctypes"]
+    A["Raw .bmp telemetry frame\n(400x400 pixels, 8-bit)"]
+    B["Python: load frame, pass pointer\nvia zero-copy ctypes memory bridge"]
     C["C-Engine: slopes.c\nCenter of Gravity centroiding"]
     D["Slope vector S\n(632 elements: 316 x X,Y)"]
     E["C-Engine: mvm_reconstructor.c\nS → Z  via  Z = G⁺ · S"]
-    F["Zernike coefficient vector Z\n(20 modes)"]
+    F["Zernike coefficient vector Z\n(55 modes)"]
     G["C-Engine: mvm_reconstructor.c\nZ → A  via  A = C_DM · Z"]
     H["DM actuator stroke vector A\n(357 actuators)"]
     I["Python: accumulate statistics\nr0, tau0, MSE, R²"]
@@ -203,86 +199,59 @@ The slope is the displacement from the pre-stored reference centroid. The inner 
 Two MVM operations run sequentially:
 
 **Step 1: Slope-to-Zernike reconstruction**
-
 ```
 Z[j] = sum_k( G_plus[j][k] * S[k] )    for j in 0..N_ZERNIKE
 ```
-
-`G_plus` is the Moore-Penrose pseudo-inverse of the calibration interaction matrix, pre-computed by `export_gplus.py` and loaded from `data/dataset/g_plus.csv`.
+`G_plus` is the Moore-Penrose pseudo-inverse of the calibration interaction matrix of shape `(n_zernike, n_slopes)`.
 
 **Step 2: Zernike-to-Actuator mapping**
-
 ```
 A[i] = sum_j( C_DM[i][j] * Z[j] )      for i in 0..N_ACTUATORS
 ```
-
-`C_DM` is the DM influence function coupling matrix, loaded from `data/dataset/dm_coupling.csv`. The output `A[357]` represents the analog voltage stroke (normalised to DM stroke units) for each physical actuator pin.
+`C_DM` is the DM influence function coupling matrix of shape `(n_actuators, n_zernike)`.
 
 Both loops are straight `for` loops with no dynamic allocation, no heap operations, and no system calls. The entire function runs on the stack.
 
-### 6.4 Python ctypes Bridge
+---
 
-The Python wrapper (`scripts/process_dataset.py`) calls the C-Engine via `ctypes` with zero-copy memory sharing:
+## 7. Live Camera & Frame Grabber Integration (GenICam & Camera Link)
 
-```python
-img_flat = np.ascontiguousarray(img_data.flatten(), dtype=np.float32)
-lib.compute_slopes(
-    img_flat.ctypes.data_as(ct.POINTER(ct.c_float)),
-    slopes_buf.ctypes.data_as(ct.POINTER(ct.c_float)),
-    ct.byref(cfg)
-)
-```
+To support integration with science-grade hardware, Project Radius implements a Hardware Abstraction Layer (HAL) ([camera_interface.py](file:///Users/deeven/Developer/Project%20Radius/src/core/camera_interface.py)) supporting three acquisition modes:
 
-No data is serialized or copied between Python and C. The pointer to the NumPy buffer's underlying memory is passed directly.
+1. **`SimulatedCameraInterface`**: A thread-safe background frame generator running a physical optics propagation loop at a target 1000 Hz, simulating dynamic atmospheric turbulence.
+2. **`PlaybackCameraInterface`**: A high-speed test interface that pre-caches real-world/simulated telemetry frames in RAM to bypass disk I/O bottlenecks and streams them at a precise loop frequency (e.g., 1000 Hz) to test closed-loop timing.
+3. **`GenICamCameraInterface`**: A hardware client using the EMVA standard `harvesters` library. It loads manufacturer GenTL common transport drivers (`.cti` libraries) for CoaXPress, GigE, or Camera Link frame grabbers, starts acquisition, and retrieves buffers.
+
+### Zero-Copy ctypes Memory Bridge
+To achieve sub-millisecond latencies, the camera interface exposes the raw image buffer memory address directly to the C-Engine. In GenICam mode, the driver DMA buffer address (`component.data`) is passed as a raw ctypes float pointer directly to `compute_slopes`, completely bypassing standard Python memory copies.
 
 ---
 
-## 7. Dataset Generation with OOPAO
+## 8. Dataset Generation with OOPAO
 
-Because no real SH-WFS hardware was available for offline testing, a 500-frame ground-truth dataset was synthesized using **OOPAO** (Object-Oriented Python Adaptive Optics) — a rigorous, peer-validated adaptive optics simulation framework.
+Because no physical SH-WFS hardware was available for offline testing, a 500-frame ground-truth dataset was synthesized using **OOPAO** (Object-Oriented Python Adaptive Optics) — a rigorous, peer-validated adaptive optics simulation framework.
 
-The physical parameters used to generate the dataset match the ISRO laboratory specification:
-
+The physical parameters used to generate the dataset match the laboratory specifications:
 ```
 Telescope          : 8.0 m diameter, no central obstruction
 Atmosphere         : Von Karman turbulence, r0 = 15 cm, L0 = 25 m
 Wind speed         : [10, 5] m/s across 2 independent layers
-SH-WFS             : 20x20 microlens array, 8 pixels per subaperture
-Detector           : 160x160 pixel detector (20 subapertures x 8 px)
+SH-WFS             : 20x20 microlens array, 20 pixels per subaperture
+Detector           : 400x400 pixel detector (20 subapertures x 20 px)
 DM                 : 357 actuators, 35% mechanical coupling coefficient
 Frame rate         : 100 Hz, total duration = 5 seconds
 Noise              : Shot noise + readout noise (RON = 1.5 e-)
 ```
 
-Each frame is stored as an 8-bit `.bmp` file. The ground-truth Zernike coefficients from OOPAO's internal reconstruction are saved in `ground_truth.csv`, providing an independent benchmark against which the C-Engine results are evaluated.
-
 ---
-## Performance Metrics & Simulator Validation
 
-The project bridges high-level Python simulations with bare-metal C performance, proven across **two independent physical optic simulators**.
-
-### 1. OOPAO Simulator Benchmark
-- **End-to-End Latency:** **0.044 ms** (A massive 227x improvement over the 10.00 ms ISRO baseline requirement!)
-- **Reconstruction Accuracy ($R^2$):** **98.18%**
-- **Average MSE:** $1.14 \times 10^{-15}$
-- *Tested on a simulated 8m telescope with $20 \times 20$ subapertures under Von Karman turbulence ($r_0 = 15$ cm).*
-
-### 2. HCIPy Cross-Validation Benchmark
-To prove the C-Engine is mathematically rigorous and not overfitted to OOPAO, we built a secondary real-time validation pipeline using **HCIPy** (`scripts/hcipy_validation.py`).
-- **Average $R^2$ Accuracy:** **95.20%**
-- **Hardware Scalability:** The C-Engine was upgraded to dynamically support arbitrary grid dimensions. When subjected to harsher turbulence ($r_0 = 10$ cm, $v = 20$ m/s), upgrading the simulated HCIPy sensor to a $40 \times 40$ lenslet array perfectly mitigated cross-talk and yielded an **Average $R^2$ of 97.55%**.
-
-These dual-simulator benchmarks provide rigorous mathematical proof that the C-Engine's centroiding and matrix-vector multiplication algorithms are **simulator-agnostic and infinitely scalable to new hardware.**
-
-## 8. Calibration Pipeline
+## 9. Calibration Pipeline
 
 Before the C-Engine can process science frames, two calibration matrices must be generated. This is done once offline:
 
-### 8.1 Interaction Matrix Recording (`export_gplus.py`)
+### 9.1 Interaction Matrix Recording (`export_gplus.py`)
 
-The deformable mirror is poked with a known unit stroke on each actuator in sequence. For each actuator poke, the resulting slope pattern on the WFS is recorded. The full set of slope responses forms the **Interaction Matrix** $D$ of shape `(n_slopes, n_actuators)`.
-
-The **Pseudo-Inverse** (or Control Matrix) $G^{+}$ is computed via Singular Value Decomposition (SVD) with modal truncation to suppress noise amplification:
+The deformable mirror is poked with a known unit stroke on each actuator in sequence. For each actuator poke, the resulting slope pattern on the WFS is recorded. The full set of slope responses forms the **Interaction Matrix** $D$ of shape `(n_slopes, n_actuators)`. The **Pseudo-Inverse** (or Control Matrix) $G^{+}$ is computed via Singular Value Decomposition (SVD):
 
 <p align="center">
   <img src="https://latex.codecogs.com/svg.latex?\color{white}G^{+}%20=%20V%20\Sigma^{-1}%20U^{T}" alt="Pseudo-inverse SVD">
@@ -290,78 +259,65 @@ The **Pseudo-Inverse** (or Control Matrix) $G^{+}$ is computed via Singular Valu
 
 This matrix maps slopes directly to Zernike coefficients at runtime with a single matrix multiply.
 
-### 8.2 DM Coupling Matrix
+### 9.2 DM Coupling Matrix
 
 The influence function of the DM is projected onto the Zernike basis, giving a matrix `C_DM` of shape `(n_actuators, n_zernike)`. This allows the C-Engine to convert a Zernike coefficient vector into the specific analog voltage strokes required to produce that wavefront shape on the DM surface.
 
 ---
 
-## 9. Results and Achievements
+## 10. Results and Achievements
 
-After processing all 500 ground-truth telemetry frames through the compiled C-Engine:
+We evaluated the compiled C-Engine in real-time playback mode at 1000 Hz over all 55 Zernike modes:
 
 ### Performance Summary
 
-| Metric | ISRO Requirement | Achieved | Status |
+| Metric | Target Requirement | Achieved (55 Modes) | Status |
 | :--- | :--- | :--- | :--- |
-| End-to-End Frame Latency | < 10.00 ms | **0.044 ms** | Pass |
-| Reconstruction R² Accuracy | > 95.00 % | **98.18 %** | Pass |
-| Reconstruction MSE | < 0.1 | **1.14e-15** | Pass |
-| DM Actuator Commands Generated | 357 per frame | 357 per frame | Pass |
-| Frames Processed | 100 (real-time stream) | 100 | Pass |
+| End-to-End Frame Latency | < 10.00 ms | **0.309 ms** | **Pass** |
+| Average Loop Rate | 1000 Hz | **998.05 Hz** | **Pass** |
+| Average Per-Frame Spatial $R^2$ | > 95.00% | **99.48%** | **Pass** |
+| Global Temporal $R^2$ Accuracy | > 95.00% | **98.60%** | **Pass** |
+| Reconstruction MSE | < 0.1 | **1.14e-15** | **Pass** |
+| Reconstructed Strehl Ratio | Maximize | **93.26% – 96.76%** | **Pass** |
 
-### Latency Margin
+### Latency Budget
 
-The C-Engine completes the full pipeline — centroiding, Zernike reconstruction, and DM actuator mapping — in **0.044 milliseconds**, which represents a **227x margin** over the 10 ms requirement. This headroom allows the system to be deployed on lower-specification embedded hardware, or to scale to denser MLA grids and more Zernike modes without breaching the real-time budget.
+The C-Engine completes centroiding, 55-mode Zernike reconstruction, and DM actuator mapping in **0.309 milliseconds**, representing a **32x safety margin** over the 10 ms real-world requirement. 
 
-```mermaid
-%%{init: { 'theme': 'base', 'themeVariables': { 'pie1': '#e04c9bff', 'pie2': '#ff9d00ff', 'pie3': '#23b9ebff', 'pieTitleColor': '#FFFFFF', 'pieSectionTextColor': '#FFFFFF', 'pieLegendTextColor': '#FFFFFF', 'pieTextColor': '#FFFFFF', 'textColor': '#FFFFFF'}}}%%
-pie title "C-Engine Latency Breakdown (44 microseconds total)"
-  "Centroiding (CoG)" : 15
-  "Zernike Recon (MVM)" : 18
-  "DM Mapping (MVM)" : 11
-```
-
-### Turbulence Characterization Output
-
-```
-Fried Parameter r0   :  1.1585e+01 m  (scale-corrected from 15 cm input)
-Coherence Time  tau0 :  0.0100 s       (theoretical estimate ~0.0047 s)
-```
-
-The discrepancy in $\tau_0$ is expected and reflects the difference between the analytical Noll model (which assumes frozen-flow Taylor hypothesis) and the multi-layer OOPAO simulation with independent wind speeds per layer.
-
-### Benchmark Terminal Output
-
-```text
-==================================
-     °          *      *      
- ▄██▄   ▄██▄  ▄███▄   ▄██▄ * ▄██▄ 
-██* ██ ██  ██ ██  ██ ██  ██ ██  ██
-██  ██ ██° ██ ██  ██ ██* ██ ██  ██
-██  ██ ██  ██ ████▀  ██▄▄██ ██  ██
-██* ██ ██  ██ ██     ██▀▀██ ██  ██
-██  ██ ██  ██ ██ *   ██  ██ ██* ██
- ▀██▀   ▀██▀  ██   ° ██  ██  ▀██▀ 
-      *         *             
-==================================
-
-Loading C-engine from build/c_engine.so...
-
---- Starting Real-Time Loop ---
-Frame 001 | MSE: 1.0685e-15 | R2:  98.34% |  21.6 FPS
-...
-Frame 100 | MSE: 1.0340e-15 | R2:  98.38% |  31.9 FPS
---- Done ---
-Average MSE: 1.1474e-15
-Average R2:  98.18%
-Estimated r0: 19.588 m
-Estimated tau0: 0.2200 s
-```
+### Why did the accuracy improve to $>99.48\%$?
+In our previous 20-mode system, the high-spatial-frequency phase structures of the atmosphere that could not be modeled by the first 20 modes were either lost or projected back onto lower modes as noise (spatial aliasing). By scaling the reconstructor to 55 modes, the pipeline captures these high-order structures accurately, raising the average shape matching R² to **99.48%**.
 
 ---
 
-## 10. Visualizations
+## 11. Unbiased Real-World Robustness Analysis
+
+To evaluate how the 55-mode reconstruction holds up under realistic physical disturbances, we ran a rigorous robustness analysis (`scripts/robustness_analysis.py`) under three simulated real-world conditions:
+
+### Scenario A: Photon Shot Noise (Guide Star Brightness)
+We simulated guiding on stars of varying brightness by adding Poisson noise.
+* **$100,000$ photons/subap**: Global $R^2$ = **98.60%** | Spatial $R^2$ = **99.49%**
+* **$1,000$ photons/subap**: Global $R^2$ = **98.41%** | Spatial $R^2$ = **99.42%**
+* **$200$ photons/subap**: Global $R^2$ = **97.71%** | Spatial $R^2$ = **99.14%**
+* **Insight**: The modal Zernike reconstructor is **extremely robust to photon shot noise**. Even on faint stars (200 photons/subap), the wavefront shape matching remains at **99.14%**.
+
+### Scenario B: Readout Noise (RON)
+At a faint guide star level (1000 photons/subap), we added varying levels of pixel readout noise.
+* **0.0 $e^-$ RON**: Global $R^2$ = **98.43%** | Spatial $R^2$ = **99.42%**
+* **1.0 $e^-$ RON (sCMOS)**: Global $R^2$ = **94.04%** | Spatial $R^2$ = **97.80%**
+* **3.0 $e^-$ RON (EMCCD)**: Global $R^2$ = **65.42%** | Spatial $R^2$ = **87.40%**
+* **5.0 $e^-$ RON (CCD)**: Global $R^2$ = **32.40%** | Spatial $R^2$ = **75.29%**
+* **Insight**: WFS centroiding is **highly sensitive to readout noise**. Adding random pixel fluctuations pulls the Center of Gravity (CoG) centroids toward the center of each subaperture window. This demonstrates why physical systems require low-noise sCMOS/EMCCD sensors and background thresholding.
+
+### Scenario C: Calibration Drift (WFS Optical Alignment Shift)
+We shifted the entire WFS lenslet spot grid relative to the detector array to simulate mechanical vibration/thermal drift.
+* **0.00 px shift**: Global $R^2$ = **98.60%** | Spatial $R^2$ = **99.49%**
+* **0.05 px shift**: Global $R^2$ = **-6.45%** | Spatial $R^2$ = **59.65%**
+* **0.10 px shift**: Global $R^2$ = **-314.51%** | Spatial $R^2$ = **-57.99%** (Failed)
+* **Insight**: The modal reconstructor is **exceedingly sensitive to alignment drift**. Shifting the image by just **0.05 pixels** degrades accuracy to **59.65%**. This is because a uniform subaperture shift acts as a massive artificial Tip/Tilt error. This highlights the absolute necessity of active optical stabilization or real-time reference slope updating.
+
+---
+
+## 12. Visualizations
 
 ### Shack-Hartmann Wavefront Sensor Spot Field
 
@@ -371,25 +327,385 @@ The focal-plane image produced by the microlens array. Each bright spot correspo
   <img src="docs/images/wfs_spot_field_inferno.svg" alt="SH-WFS Spot Field" width="400">
 </p>
 
-### 3D Zernike Phase Reconstruction
+### Zernike Tracking Comparison Plot
 
-The reconstructed wavefront phase surface output by the C-Engine's MVM reconstructor, expressed in the Zernike polynomial basis. The surface represents the physical shape of the incoming distorted wavefront — the Deformable Mirror must produce the conjugate of this shape to correct it.
-
-<p align="center">
-  <img src="docs/images/reconstruction_3d.gif" alt="3D Zernike Phase Reconstruction (rotating)" width="620">
-</p>
-
-### 3D Deformable Mirror Actuator Surface
-
-The commanded actuator stroke map for the 357-actuator continuous facesheet DM. Each point on the surface represents the physical displacement (in normalised stroke units) commanded to one actuator pin. The gaussian-smoothed continuous surface between pins represents the physical deformation of the mirror facesheet.
+The comparison tracking chart below shows the C-Engine live output (dashed lines) overlaying the ground-truth coefficients (solid black lines) for the Tip (Z2) and Tilt (Z3) modes over a 100-frame sequence:
 
 <p align="center">
-  <img src="docs/images/dm_actuator_surface.gif" alt="3D DM Actuator Surface (rotating)" width="620">
+  <img src="data/comparisons/zernike_comparison.png" alt="Zernike Tracking Comparison" width="600">
 </p>
+
+### Robustness Analysis Plot
+
+The performance degradation curves for photon noise, readout noise, and sub-pixel alignment shift:
+
+<p align="center">
+  <img src="data/comparisons/robustness_analysis.png" alt="Robustness Analysis curves" width="900">
+</p>
+
+### Zernike Polynomial Reference Library
+
+This visual reference library contains all 55 Zernike modes reconstructed by the C-Engine (radial orders $n = 0$ to $9$ in Noll indexing). Each cell shows the localized phase aberration oscillating in amplitude ($\pm 1.0$ normalized) over a circular telescope pupil boundary (shown in dark gray).
+
+<table width="100%" border="0" cellpadding="4" cellspacing="0" style="background-color: #0b0b0b; border: 1px solid #222; border-collapse: collapse;">
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>1</sub></b><br>
+      <code>Z<sub>0</sub><sup>0</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n0_m0.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Piston</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>2</sub></b><br>
+      <code>Z<sub>1</sub><sup>+1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n1_m1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tip X (horizontal)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>3</sub></b><br>
+      <code>Z<sub>1</sub><sup>-1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n1_m-1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tilt Y (vertical)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>4</sub></b><br>
+      <code>Z<sub>2</sub><sup>0</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n2_m0.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Defocus</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>5</sub></b><br>
+      <code>Z<sub>2</sub><sup>-2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n2_m-2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Astigmatism 45°</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>6</sub></b><br>
+      <code>Z<sub>2</sub><sup>+2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n2_m2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Astigmatism 0°</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>7</sub></b><br>
+      <code>Z<sub>3</sub><sup>-1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n3_m-1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Coma Y (vertical)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>8</sub></b><br>
+      <code>Z<sub>3</sub><sup>+1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n3_m1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Coma X (horizontal)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>9</sub></b><br>
+      <code>Z<sub>3</sub><sup>-3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n3_m-3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Trefoil Y (vertical)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>10</sub></b><br>
+      <code>Z<sub>3</sub><sup>+3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n3_m3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Trefoil X (horizontal)</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>11</sub></b><br>
+      <code>Z<sub>4</sub><sup>0</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n4_m0.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Spherical Aberration</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>12</sub></b><br>
+      <code>Z<sub>4</sub><sup>+2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n4_m2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Astigmatism 0°</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>13</sub></b><br>
+      <code>Z<sub>4</sub><sup>-2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n4_m-2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Astigmatism 45°</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>14</sub></b><br>
+      <code>Z<sub>4</sub><sup>+4</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n4_m4.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tetrafoil Y (vertical)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>15</sub></b><br>
+      <code>Z<sub>4</sub><sup>-4</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n4_m-4.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tetrafoil X (horizontal)</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>16</sub></b><br>
+      <code>Z<sub>5</sub><sup>+1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n5_m1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Coma Horizontal</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>17</sub></b><br>
+      <code>Z<sub>5</sub><sup>-1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n5_m-1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Coma Vertical</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>18</sub></b><br>
+      <code>Z<sub>5</sub><sup>+3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n5_m3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Trefoil Horizontal</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>19</sub></b><br>
+      <code>Z<sub>5</sub><sup>-3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n5_m-3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Trefoil Vertical</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>20</sub></b><br>
+      <code>Z<sub>5</sub><sup>+5</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n5_m5.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Pentafoil Horizontal</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>21</sub></b><br>
+      <code>Z<sub>5</sub><sup>-5</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n5_m-5.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Pentafoil Vertical</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>22</sub></b><br>
+      <code>Z<sub>6</sub><sup>0</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n6_m0.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Spherical</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>23</sub></b><br>
+      <code>Z<sub>6</sub><sup>-2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n6_m-2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Astigmatism Y</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>24</sub></b><br>
+      <code>Z<sub>6</sub><sup>+2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n6_m2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Astigmatism X</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>25</sub></b><br>
+      <code>Z<sub>6</sub><sup>-4</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n6_m-4.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Tetrafoil Y</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>26</sub></b><br>
+      <code>Z<sub>6</sub><sup>+4</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n6_m4.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Tetrafoil X</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>27</sub></b><br>
+      <code>Z<sub>6</sub><sup>-6</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n6_m-6.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Hexafoil Y</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>28</sub></b><br>
+      <code>Z<sub>6</sub><sup>+6</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n6_m6.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Hexafoil X</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>29</sub></b><br>
+      <code>Z<sub>7</sub><sup>-1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m-1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quaternary Coma (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>30</sub></b><br>
+      <code>Z<sub>7</sub><sup>+1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quaternary Coma (Cosine)</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>31</sub></b><br>
+      <code>Z<sub>7</sub><sup>-3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m-3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Trefoil (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>32</sub></b><br>
+      <code>Z<sub>7</sub><sup>+3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Trefoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>33</sub></b><br>
+      <code>Z<sub>7</sub><sup>-5</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m-5.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Pentafoil (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>34</sub></b><br>
+      <code>Z<sub>7</sub><sup>+5</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m5.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Pentafoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>35</sub></b><br>
+      <code>Z<sub>7</sub><sup>-7</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m-7.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Heptafoil (Sine)</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>36</sub></b><br>
+      <code>Z<sub>7</sub><sup>+7</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m7.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Heptafoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>37</sub></b><br>
+      <code>Z<sub>8</sub><sup>0</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m0.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Spherical</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>38</sub></b><br>
+      <code>Z<sub>8</sub><sup>+2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quaternary Astigmatism (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>39</sub></b><br>
+      <code>Z<sub>8</sub><sup>-2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m-2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quaternary Astigmatism (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>40</sub></b><br>
+      <code>Z<sub>8</sub><sup>+4</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m4.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Tetrafoil (Cosine)</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>41</sub></b><br>
+      <code>Z<sub>8</sub><sup>-4</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m-4.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Tetrafoil (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>42</sub></b><br>
+      <code>Z<sub>8</sub><sup>+6</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m6.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Hexafoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>43</sub></b><br>
+      <code>Z<sub>8</sub><sup>-6</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m-6.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Hexafoil (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>44</sub></b><br>
+      <code>Z<sub>8</sub><sup>+8</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m8.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Octafoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>45</sub></b><br>
+      <code>Z<sub>8</sub><sup>-8</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m-8.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Octafoil (Sine)</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>46</sub></b><br>
+      <code>Z<sub>9</sub><sup>+1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quinary Coma (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>47</sub></b><br>
+      <code>Z<sub>9</sub><sup>-1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m-1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quinary Coma (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>48</sub></b><br>
+      <code>Z<sub>9</sub><sup>+3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quaternary Trefoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>49</sub></b><br>
+      <code>Z<sub>9</sub><sup>-3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m-3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quaternary Trefoil (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>50</sub></b><br>
+      <code>Z<sub>9</sub><sup>+5</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m5.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Pentafoil (Cosine)</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>51</sub></b><br>
+      <code>Z<sub>9</sub><sup>-5</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m-5.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Pentafoil (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>52</sub></b><br>
+      <code>Z<sub>9</sub><sup>+7</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m7.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Heptafoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>53</sub></b><br>
+      <code>Z<sub>9</sub><sup>-7</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m-7.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Heptafoil (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>54</sub></b><br>
+      <code>Z<sub>9</sub><sup>+9</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m9.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Nonafoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>55</sub></b><br>
+      <code>Z<sub>9</sub><sup>-9</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m-9.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Nonafoil (Sine)</font>
+    </td>
+  </tr>
+  </table>
+
 
 ---
 
-## 11. Running the Project
+## 13. Running the Project
 
 ### Prerequisites
 
@@ -403,92 +719,90 @@ The commanded actuator stroke map for the 357-actuator continuous facesheet DM. 
 cd src/c_engine
 make
 ```
-
 This produces `build/c_engine.so`.
 
-### Step 2: Generate the Synthetic Dataset (first-time or after parameter changes)
-
+### Step 2: Generate the 55-Mode Calibration Matrices & Telemetry Dataset
 ```bash
 source venv/bin/activate
-python scripts/generate_dataset.py    # generates 500 .bmp frames + ground_truth.csv
-python scripts/export_gplus.py        # generates g_plus.csv + dm_coupling.csv
+python scripts/export_gplus.py        # generates 55-mode g_plus.csv + dm_coupling.csv
+python scripts/generate_dataset.py    # generates 500 400x400 .bmp frames + ground_truth.csv
 ```
 
-### Step 3: Run the Real-Time Validation
+### Step 3: Run the Real-Time Loop Tests
 
+**Run Live Playback (1000 Hz real data test)**:
 ```bash
-source venv/bin/activate
-python scripts/realtime_accuracy_test.py
+python scripts/live_camera_test.py --mode playback --frames 500 --fps 1000.0
 ```
 
-### Step 4: Regenerate Visualizations (optional)
-
+**Run Live Simulation (OOPAO background thread)**:
 ```bash
-python scripts/generate_rotating_gifs.py   # regenerates the rotating 3D GIFs
-python scripts/generate_readme_images.py   # regenerates the SVG spot-field image
+python scripts/live_camera_test.py --mode sim --frames 200
+```
+
+### Step 4: Run the Robustness Analysis & Comparison Reports
+```bash
+python scripts/robustness_analysis.py  # runs noise/drift sweeps and saves plots
+python scripts/compare_outputs.py      # prints detailed side-by-side mode metrics
 ```
 
 ---
 
-## 12. Project Structure
+## 14. Project Structure
 
 ```text
 .
 ├── data/
-│   └── dataset/
-│       ├── frame_0000.bmp ... frame_0499.bmp   # 500 SH-WFS detector frames
-│       ├── ground_truth.csv                    # OOPAO Zernike coefficients (500 x 20)
-│       ├── valid_mask.csv                      # Binary subaperture validity mask (20x20)
-│       ├── g_plus.csv                          # Pre-inverted interaction matrix (20 x 632)
-│       └── dm_coupling.csv                     # DM influence function matrix (357 x 20)
-│
-├── docs/
-│   └── images/
-│       ├── wfs_spot_field_inferno.svg          # SH-WFS focal plane visualization
-│       ├── reconstruction_3d.gif               # Rotating 3D Zernike phase surface
-│       └── dm_actuator_surface.gif             # Rotating 3D DM actuator map
-│
-├── scripts/
-│   ├── generate_dataset.py                     # OOPAO physics simulation and BMP export
-│   ├── export_gplus.py                         # Interaction matrix calibration and export
-│   ├── process_dataset.py                      # Main benchmark: Python-ctypes C-Engine loop
-│   ├── generate_rotating_gifs.py               # Generates rotating 3D GIFs for README
-│   └── generate_readme_images.py               # Generates static SVG figures for README
+│   ├── dataset/
+│   │   ├── frame_0000.bmp ... frame_0499.bmp   # 500 400x400 SH-WFS detector frames
+│   │   ├── ground_truth.csv                    # OOPAO Zernike coefficients (500 x 55)
+│   │   ├── valid_mask.csv                      # Binary subaperture validity mask (20x20)
+│   │   ├── ref_slopes.csv                      # Flat wavefront reference slopes
+│   │   ├── g_plus.csv                          # Pre-inverted interaction matrix (55 x 632)
+│   │   └── dm_coupling.csv                     # DM influence function matrix (357 x 55)
+│   └── comparisons/
+│       ├── zernike_comparison.png              # Tracking comparison chart
+│       └── robustness_analysis.png             # Noise/drift performance charts
 │
 ├── src/
+│   ├── core/
+│   │   └── camera_interface.py                 # Simulated, Playback, and GenICam HAL
 │   └── c_engine/
 │       ├── Makefile                            # gcc build rules: produces build/c_engine.so
 │       ├── geometry.h                          # LensletConfig struct definition
 │       ├── slopes.c                            # Center of Gravity centroiding algorithm
 │       └── mvm_reconstructor.c                 # Zernike MVM and DM actuator MVM
 │
+├── scripts/
+│   ├── live_camera_test.py                     # Real-time console test harness (sim/playback/hardware)
+│   ├── compare_outputs.py                      # Unbiased side-by-side accuracy report
+│   ├── robustness_analysis.py                  # Noise/drift simulation sweep script
+│   ├── generate_dataset.py                     # OOPAO physics simulation and BMP export
+│   ├── export_gplus.py                         # Interaction matrix calibration and export
+│   └── inspect_eris.py                         # Real FITS telemetry data inspector
+│
+├── tests/
+│   └── test_genicam_interface.py               # Unit tests verifying GenICam wrapper API interactions
+│
 ├── build/
-│   └── c_engine.so                            # Compiled shared library (generated by make)
+│   └── c_engine.so                             # Compiled shared library
 │
 └── README.md
 ```
 
 ---
 
-## 13. Future Work
+## 15. Future Work
 
-The following extensions are identified for subsequent phases of Project Radius:
+The following extensions are identified for subsequent phases:
 
-1. **Closed-Loop Control:** Integrate the actuator stroke output into a real-time DM driver. Implement an integrator gain controller to drive the residual wavefront error to zero over successive frames.
-
-2. **Hardware Camera Interface:** Replace the `.bmp` file loader with a direct GenICam or Camera Link frame grabber interface to eliminate disk I/O from the latency budget entirely.
-
-3. **Higher-Order Modal Reconstruction:** Extend the Zernike basis from 20 to 55 modes (7th radial order) and correspondingly expand the valid subaperture count to match a denser MLA.
-
-4. **Square Pupil Mask:** Transition from circular to square aperture geometry to match ISRO's laboratory laser beam profile, requiring modification of the valid-mask generation in `generate_dataset.py` and recalibration of all interaction matrices.
-
-5. **Pyramid WFS Support:** The centroiding layer is modular; a new `pyramid_slopes.c` module implementing the optical gain correction and signal extraction for a Pyramid WFS can be slotted in without modifying the MVM reconstructor or DM mapping layers.
-
-6. **Telemetry Logging:** Implement a lightweight binary ring-buffer telemetry stream so that all slope vectors, Zernike coefficients, and DM commands are archived to disk continuously for post-analysis without impacting the real-time loop.
+1. **Closed-Loop DM Control:** Integrate the actuator stroke output into a real-time closed-loop DM driver. Implement an integrator gain controller to drive the residual wavefront error to zero over successive frames.
+2. **Background subtraction thresholding**: Add a configurable threshold filter in `slopes.c` to reject background pixels, mitigating readout noise degradation.
+3. **Multi-core BLAS/OpenMP Acceleration**: Link the C-Engine MVM loops to OpenMP or optimized BLAS (like OpenBLAS/MKL) to handle larger configurations ($80 \times 80$ subapertures) under a sub-millisecond budget.
 
 ---
 
-## 14. Academic References & Literature
+## 16. Academic References & Literature
 
 The mathematical and physical models implemented in the C-Engine are drawn from the foundational literature in adaptive optics:
 
@@ -497,7 +811,3 @@ The mathematical and physical models implemented in the C-Engine are drawn from 
 3. **Hardy, J. W. (1998).** [*Adaptive Optics for Astronomical Telescopes.*](https://doi.org/10.1093/oso/9780195090192.001.0001) Oxford University Press. (Comprehensive review of Shack-Hartmann WFS and control matrix generation).
 4. **Roddier, F. (1999).** [*Adaptive Optics in Astronomy.*](https://doi.org/10.1017/CBO9780511525179) Cambridge University Press. (SVD truncation strategies for interaction matrices).
 5. **Taylor, G. I. (1938).** ["The Spectrum of Turbulence."](https://doi.org/10.1098/rspa.1938.0032) *Proceedings of the Royal Society of London. Series A*, 164(919), 476-490. (Frozen-flow hypothesis used in estimating the coherence time $\tau_0$).
-
----
-
-<!-- section added by commit 42 - see full README for rendered version -->
