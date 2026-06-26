@@ -8,6 +8,11 @@ Generates calibration matrices required by the C-Engine:
   ref_slopes.csv  : flat wavefront reference slopes in pixel units
 """
 import numpy as np, os, ctypes as ct
+import argparse
+
+parser = argparse.ArgumentParser(description="Export calibration matrices.")
+parser.add_argument('--rcond', type=float, default=1e-2, help="SVD regularization threshold for pinv (default: 1e-2).")
+args = parser.parse_args()
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'dataset')
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -78,7 +83,7 @@ for i in range(n_zernike):
     M_Zernike[:, i] = (slopes_buf - ref_slopes) / amp
 
 print("Inverting Zernike Interaction Matrix to obtain G+...")
-g_plus = np.linalg.pinv(M_Zernike, rcond=1e-2).astype(np.float32)
+g_plus = np.linalg.pinv(M_Zernike, rcond=args.rcond).astype(np.float32)
 
 print("Computing DM Influence Matrix and mapping to Zernikes...")
 pupil_mask = tel.pupil.flatten() > 0

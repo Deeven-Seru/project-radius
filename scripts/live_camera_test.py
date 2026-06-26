@@ -61,8 +61,8 @@ def main():
     
     # 2. Load C-Engine
     lib = ct.CDLL(os.path.join(BASE, 'build', 'c_engine.so'))
-    lib.compute_slopes.argtypes = [ct.POINTER(ct.c_float)]*2 + [ct.POINTER(ct.c_int)] + [ct.c_int]*3
-    lib.compute_slopes.restype  = None
+    lib.compute_slopes_enhanced.argtypes = [ct.POINTER(ct.c_float)]*2 + [ct.POINTER(ct.c_int)] + [ct.c_int]*3 + [ct.c_float]*3
+    lib.compute_slopes_enhanced.restype  = None
     lib.reconstruct_zernikes.argtypes = [ct.POINTER(ct.c_float)]*3 + [ct.c_int]*2
     lib.reconstruct_zernikes.restype  = None
     lib.compute_actuator_map.argtypes = [ct.POINTER(ct.c_float)]*3 + [ct.c_int]*2
@@ -132,12 +132,18 @@ def main():
                 
             t_proc_start = time.perf_counter()
             
-            # C-Engine Centroiding (CoG)
-            lib.compute_slopes(
+            # Hardware configuration limits (simulated baseline)
+            bg_threshold = 2.0  # e.g., 2 ADU read noise floor
+            shift_x = 0.0
+            shift_y = 0.0
+
+            # C-Engine Centroiding (CoG) with thresholding and shifts
+            lib.compute_slopes_enhanced(
                 img_ptr,
                 slopes_buf.ctypes.data_as(ct.POINTER(ct.c_float)),
                 valid_mask.ctypes.data_as(ct.POINTER(ct.c_int)),
-                ct.c_int(400), ct.c_int(n_valid), ct.c_int(sub_px)
+                ct.c_int(400), ct.c_int(n_valid), ct.c_int(sub_px),
+                ct.c_float(bg_threshold), ct.c_float(shift_x), ct.c_float(shift_y)
             )
             
             # Subtract flat wavefront reference slopes
