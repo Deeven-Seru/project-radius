@@ -319,6 +319,22 @@ We shifted the entire WFS lenslet spot grid relative to the detector array to si
 
 ## 12. Visualizations
 
+### 3D Wavefront Phase Reconstruction
+
+A live playback of the 55-mode Zernike reconstructor translating Shack-Hartmann spot displacements into a continuous 3D phase surface over the telescope pupil.
+
+<p align="center">
+  <img src="docs/images/reconstruction_3d.gif" alt="3D Wavefront Reconstruction" width="600">
+</p>
+
+### Deformable Mirror Actuator Surface
+
+The corresponding physical actuator strokes on the 357-actuator continuous facesheet Deformable Mirror, computed directly from the Zernike coefficients via the DM influence coupling matrix.
+
+<p align="center">
+  <img src="docs/images/dm_actuator_surface.gif" alt="DM Actuator Surface" width="600">
+</p>
+
 ### Shack-Hartmann Wavefront Sensor Spot Field
 
 The focal-plane image produced by the microlens array. Each bright spot corresponds to one valid subaperture. Displaced spots indicate local wavefront tilt due to turbulence. The C-Engine processes this raw image and extracts 316 spot positions via Center of Gravity.
