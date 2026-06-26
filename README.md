@@ -345,13 +345,9 @@ The performance degradation curves for photon noise, readout noise, and sub-pixe
 
 ### Zernike Polynomial Reference Library
 
-<details>
-  <summary><b>📈 Click to Expand: 55 Zernike Modes Animated Reference Grid</b></summary>
-  <br>
+This visual reference library contains all 55 Zernike modes reconstructed by the C-Engine (radial orders $n = 0$ to $9$ in Noll indexing). Each cell shows the localized phase aberration oscillating in amplitude ($\pm 1.0$ normalized) over a circular telescope pupil boundary (shown in dark gray).
 
-  This visual reference library contains all 55 Zernike modes reconstructed by the C-Engine (radial orders $n = 0$ to $9$ in Noll indexing). Each cell shows the localized phase aberration oscillating in amplitude ($\pm 1.0$ normalized) over a circular telescope pupil boundary (shown in dark gray).
-
-  <table width="100%" border="0" cellpadding="4" cellspacing="0" style="background-color: #0b0b0b; border: 1px solid #222; border-collapse: collapse;">
+<table width="100%" border="0" cellpadding="4" cellspacing="0" style="background-color: #0b0b0b; border: 1px solid #222; border-collapse: collapse;">
   <tr>
     <td align="center" valign="top" width="20%">
       <b>Z<sub>1</sub></b><br>
@@ -705,7 +701,6 @@ The performance degradation curves for photon noise, readout noise, and sub-pixe
     </td>
   </tr>
   </table>
-</details>
 
 
 ---
