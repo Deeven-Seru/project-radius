@@ -319,6 +319,22 @@ We shifted the entire WFS lenslet spot grid relative to the detector array to si
 
 ## 12. Visualizations
 
+### 3D Wavefront Phase Reconstruction
+
+A live playback of the 55-mode Zernike reconstructor translating Shack-Hartmann spot displacements into a continuous 3D phase surface over the telescope pupil.
+
+<p align="center">
+  <img src="docs/images/reconstruction_3d.gif" alt="3D Wavefront Reconstruction" width="600">
+</p>
+
+### Deformable Mirror Actuator Surface
+
+The corresponding physical actuator strokes on the 357-actuator continuous facesheet Deformable Mirror, computed directly from the Zernike coefficients via the DM influence coupling matrix.
+
+<p align="center">
+  <img src="docs/images/dm_actuator_surface.gif" alt="DM Actuator Surface" width="600">
+</p>
+
 ### Shack-Hartmann Wavefront Sensor Spot Field
 
 The focal-plane image produced by the microlens array. Each bright spot corresponds to one valid subaperture. Displaced spots indicate local wavefront tilt due to turbulence. The C-Engine processes this raw image and extracts 316 spot positions via Center of Gravity.
@@ -700,50 +716,66 @@ This visual reference library contains all 55 Zernike modes reconstructed by the
       <font size="1" color="#888">Nonafoil (Sine)</font>
     </td>
   </tr>
-  </table>
-
+</table>
 
 ---
 
-## 13. Running the Project
+## 13. Installation and Setup
 
 ### Prerequisites
 
-- Python 3.9+ with `venv`
+- Python 3.9+
 - `gcc` (any version supporting C99)
-- Python packages: `numpy`, `scipy`, `matplotlib`, `Pillow`, `oopao`
+- Unix-like OS (Linux, macOS)
 
-### Step 1: Compile the C-Engine
+### Step 1: Clone the Repository
+Clone this repository with its submodules (required for OOPAO and MSHWFS dependencies):
+```bash
+git clone --recurse-submodules https://github.com/Deeven-Seru/project-radius.git
+cd project-radius
+```
 
+### Step 2: Set Up the Python Environment
+We recommend creating an isolated virtual environment.
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+*(Note: If testing physical camera hardware, you must also install the GenICam wrapper: `pip install harvesters`)*
+
+### Step 3: Compile the C-Engine
+The C-Engine must be compiled locally to create the zero-copy shared library. The `Makefile` automatically detects your system architecture (Apple Silicon ARM64 vs Intel x86_64). On x86_64 systems, it will automatically enable AVX2/FMA vectorization for sub-millisecond latency.
 ```bash
 cd src/c_engine
 make
+cd ../..
 ```
 This produces `build/c_engine.so`.
 
-### Step 2: Generate the 55-Mode Calibration Matrices & Telemetry Dataset
+### Step 4: Generate Calibration Matrices & Dataset
+Because large arrays and datasets are excluded from version control, you must synthesize the ground-truth OOPAO dataset and calibration matrices.
 ```bash
-source venv/bin/activate
 python scripts/export_gplus.py        # generates 55-mode g_plus.csv + dm_coupling.csv
 python scripts/generate_dataset.py    # generates 500 400x400 .bmp frames + ground_truth.csv
 ```
 
-### Step 3: Run the Real-Time Loop Tests
+### Step 5: Run the Benchmarks and Tests
 
-**Run Live Playback (1000 Hz real data test)**:
+**Live Playback Benchmark (1000 Hz real data test)**:
 ```bash
 python scripts/live_camera_test.py --mode playback --frames 500 --fps 1000.0
 ```
 
-**Run Live Simulation (OOPAO background thread)**:
+**Live Physical Simulation**:
 ```bash
 python scripts/live_camera_test.py --mode sim --frames 200
 ```
 
-### Step 4: Run the Robustness Analysis & Comparison Reports
+**Robustness Analysis & Verification**:
 ```bash
-python scripts/robustness_analysis.py  # runs noise/drift sweeps and saves plots
-python scripts/compare_outputs.py      # prints detailed side-by-side mode metrics
+python scripts/robustness_analysis.py  # Evaluates noise/drift resilience
+python scripts/compare_outputs.py      # Computes spatial/temporal R² metrics
 ```
 
 ---
