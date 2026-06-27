@@ -1,0 +1,17 @@
+Loading datasets...
+\n--- Running Condition A (Base: Clean BMPs) ---
+Total Frames Processed: 500
+Average Zernike RMSE: 0.0000
+Average E2E Latency:  0.4853 ms
+\n--- Running Condition B (Low Light: 10% Intensity, 2px Noise) ---
+Total Frames Processed: 500
+Average Zernike RMSE: 0.0000
+Average E2E Latency:  0.4851 ms
+\n--- Running Condition C (High Bg Noise: 20px Noise) ---
+Total Frames Processed: 500
+Average Zernike RMSE: 0.0000
+Average E2E Latency:  0.4809 ms
+\n--- Running Condition D (Sub-pixel Misalignment: 2.5px shift) ---
+Total Frames Processed: 500
+Average Zernike RMSE: 0.0000
+Average E2E Latency:  0.4735 ms

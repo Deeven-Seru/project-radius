@@ -1,0 +1,33 @@
+Loading datasets...
+\n--- Running Condition A (Base: Clean BMPs) ---
+Sample Zernikes (Computed): [-2.2089511e-12  1.1850450e-07  2.2685940e-07 -5.9280785e-07
+  2.2372157e-07]
+Sample Zernikes (Ground Truth): [ 3.09364020e-07  7.98393622e-08  2.51685227e-07 -5.45028125e-07
+  1.86744460e-07]
+Total Frames Processed: 500
+Average Zernike RMSE: 0.0000
+Average E2E Latency:  0.4845 ms
+\n--- Running Condition B (Low Light: 10% Intensity, 2px Noise) ---
+Sample Zernikes (Computed): [-5.1755778e-12 -4.3282884e-07  5.4400971e-07  2.6226456e-07
+  4.4019802e-07]
+Sample Zernikes (Ground Truth): [ 3.09364020e-07  7.98393622e-08  2.51685227e-07 -5.45028125e-07
+  1.86744460e-07]
+Total Frames Processed: 500
+Average Zernike RMSE: 0.0000
+Average E2E Latency:  0.4712 ms
+\n--- Running Condition C (High Bg Noise: 20px Noise) ---
+Sample Zernikes (Computed): [ 1.3071724e-12  2.5717824e-07 -1.4253627e-07  1.1393098e-07
+  1.7673625e-07]
+Sample Zernikes (Ground Truth): [ 3.09364020e-07  7.98393622e-08  2.51685227e-07 -5.45028125e-07
+  1.86744460e-07]
+Total Frames Processed: 500
+Average Zernike RMSE: 0.0000
+Average E2E Latency:  0.5363 ms
+\n--- Running Condition D (Sub-pixel Misalignment: 2.5px shift) ---
+Sample Zernikes (Computed): [ 2.6497918e-10 -2.6826074e-05 -2.6719606e-05 -5.9280802e-07
+  2.2372168e-07]
+Sample Zernikes (Ground Truth): [ 3.09364020e-07  7.98393622e-08  2.51685227e-07 -5.45028125e-07
+  1.86744460e-07]
+Total Frames Processed: 500
+Average Zernike RMSE: 0.0000
+Average E2E Latency:  0.4984 ms

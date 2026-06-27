@@ -5,3 +5,5 @@ Pillow
 oopao
 jupyter
 nbconvert
+pyzmq
+pytest

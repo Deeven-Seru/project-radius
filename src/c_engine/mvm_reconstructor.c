@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <math.h>
 
 #if defined(__x86_64__) || defined(_M_X64)
 #include <immintrin.h>
@@ -42,7 +43,8 @@ void reconstruct_zernikes(const float *slopes,
 void compute_actuator_map(const float *zernikes,
                            const float *C_DM,
                            float       *actuators,
-                           int n_actuators, int n_zernike)
+                           int n_actuators, int n_zernike,
+                           float clip_min, float clip_max)
 {
     for (int i = 0; i < n_actuators; i++) {
         const float *row = C_DM + i * n_zernike;
@@ -62,12 +64,14 @@ void compute_actuator_map(const float *zernikes,
         for (; j < n_zernike; j++) {
             acc += row[j] * zernikes[j];
         }
+        acc = fmaxf(clip_min, fminf(clip_max, acc));
         actuators[i] = acc;
 #else
         float acc = 0.0f;
         for (int j = 0; j < n_zernike; j++) {
             acc += row[j] * zernikes[j];
         }
+        acc = fmaxf(clip_min, fminf(clip_max, acc));
         actuators[i] = acc;
 #endif
     }

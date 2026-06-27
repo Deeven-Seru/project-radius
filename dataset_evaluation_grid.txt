@@ -1,0 +1,22 @@
+Loading datasets...
+Running Hyper-parameter Search...
+Bg: 0.0, W: 1.0 | Acc: 88.21% | Latency: 0.471ms
+Bg: 0.0, W: 1.5 | Acc: 67.10% | Latency: 0.769ms
+Bg: 0.0, W: 2.0 | Acc: 49.27% | Latency: 0.718ms
+Bg: 5.0, W: 1.0 | Acc: 85.59% | Latency: 0.456ms
+Bg: 5.0, W: 1.5 | Acc: 62.91% | Latency: 0.740ms
+Bg: 5.0, W: 2.0 | Acc: 45.38% | Latency: 1.075ms
+Bg: 10.0, W: 1.0 | Acc: 81.50% | Latency: 0.453ms
+Bg: 10.0, W: 1.5 | Acc: 58.22% | Latency: 0.748ms
+Bg: 10.0, W: 2.0 | Acc: 41.41% | Latency: 0.738ms
+Bg: 20.0, W: 1.0 | Acc: 69.77% | Latency: 0.464ms
+Bg: 20.0, W: 1.5 | Acc: 48.13% | Latency: 0.755ms
+Bg: 20.0, W: 2.0 | Acc: 33.47% | Latency: 0.707ms
+Bg: 40.0, W: 1.0 | Acc: 44.83% | Latency: 0.496ms
+Bg: 40.0, W: 1.5 | Acc: 29.40% | Latency: 0.789ms
+Bg: 40.0, W: 2.0 | Acc: 19.13% | Latency: 0.740ms
+\nBest Params Found: Bg=0.0, Weight=1.0 -> Accuracy = 88.21%
+Condition A (Base: Clean BMPs) | Acc: 88.21% | Latency: 0.454ms
+Condition B (Low Light: 10% Intensity, 2px Noise) | Acc: -18.85% | Latency: 0.458ms
+Condition C (High Bg Noise: 20px Noise) | Acc: -16.42% | Latency: 0.487ms
+Condition D (Sub-pixel Misalignment: 2.5px shift) | Acc: -3774.02% | Latency: 0.475ms
