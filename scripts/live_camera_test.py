@@ -223,7 +223,7 @@ def main():
         zlog_rad = zlog * (2 * np.pi / wavelength)
         
         r0 = estimate_r0(zlog_rad, D=8.0, tip_idx=1, tilt_idx=2)
-        tau0 = estimate_tau0(zlog_rad, fps=args.fps, tip_idx=1, tilt_idx=2)
+        tau0 = estimate_tau0(zlog_rad, fps=args.fps, D=8.0, tip_idx=1, tilt_idx=2)
         
         # Calculate Global temporal R^2
         ss_r = sum(np.sum((zlog[i, 1:] - gt_zernikes[i, 1:])**2) for i in range(len(zlog)))

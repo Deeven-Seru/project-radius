@@ -3,11 +3,7 @@ CFLAGS = -O3 -Wall -Wextra -std=c99 -fPIC
 SRC    = slopes.c mvm_reconstructor.c
 OUT    = ../../build/c_engine.so
 
-# Detect architecture to enable AVX2 only on x86_64
-UNAME_M := $(shell uname -m)
-ifeq ($(UNAME_M),x86_64)
-	CFLAGS += -mavx2 -mfma
-endif
+# Vectorization is dynamically dispatched at runtime inside mvm_reconstructor.c
 
 .PHONY: all clean debug test
 
