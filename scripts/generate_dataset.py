@@ -12,22 +12,27 @@ from OOPAO.ShackHartmann import ShackHartmann
 from OOPAO.DeformableMirror import DeformableMirror
 from OOPAO.Atmosphere import Atmosphere
 from OOPAO.Zernike import Zernike
+import argparse
+
+parser = argparse.ArgumentParser(description="Generate Telemetry.")
+parser.add_argument('--resolution', type=int, default=400, help="Resolution of the telescope pupil in pixels.")
+parser.add_argument('--n_subap', type=int, default=20, help="Number of 1D subapertures for WFS and DM.")
+args = parser.parse_args()
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'dataset')
 os.makedirs(DATA_DIR, exist_ok=True)
 N_FRAMES = 500
 
-print("Initializing OOPAO objects (Resolution = 400)...")
-tel  = Telescope(resolution=400, diameter=8.0)
+print(f"Initializing OOPAO objects (Resolution = {args.resolution}, Subapertures = {args.n_subap})...")
+tel  = Telescope(resolution=args.resolution, diameter=8.0)
 src  = Source('K', magnitude=8); src * tel
 atm  = Atmosphere(telescope=tel, r0=0.15, L0=25, fractionalR0=[1.0, 0.5], windSpeed=[10, 5], windDirection=[0, 45], altitude=[0, 1000], src=src)
 
 atm.initializeAtmosphere(tel)
 tel + atm
 
-
-dm   = DeformableMirror(tel, nSubap=20, mechCoupling=0.35)
-wfs  = ShackHartmann(nSubap=20, telescope=tel, lightRatio=0.5)
+dm   = DeformableMirror(tel, nSubap=args.n_subap, mechCoupling=0.35)
+wfs  = ShackHartmann(nSubap=args.n_subap, telescope=tel, lightRatio=0.5)
 
 # Reset main source to clear Tip/Tilt calibration mask left by wfs.set_slopes_units()
 src.reset()

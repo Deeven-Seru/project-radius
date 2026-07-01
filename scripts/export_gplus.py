@@ -12,6 +12,8 @@ import argparse
 
 parser = argparse.ArgumentParser(description="Export calibration matrices.")
 parser.add_argument('--rcond', type=float, default=1e-2, help="SVD regularization threshold for pinv (default: 1e-2).")
+parser.add_argument('--resolution', type=int, default=400, help="Resolution of the telescope pupil in pixels.")
+parser.add_argument('--n_subap', type=int, default=20, help="Number of 1D subapertures for WFS and DM.")
 args = parser.parse_args()
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'dataset')
@@ -24,11 +26,11 @@ from OOPAO.ShackHartmann import ShackHartmann
 from OOPAO.DeformableMirror import DeformableMirror
 from OOPAO.Zernike import Zernike
 
-print("Initializing OOPAO objects (Resolution = 400)...")
-tel  = Telescope(resolution=400, diameter=8.0)
+print(f"Initializing OOPAO objects (Resolution = {args.resolution}, Subapertures = {args.n_subap})...")
+tel  = Telescope(resolution=args.resolution, diameter=8.0)
 src  = Source('K', magnitude=8); src * tel
-dm   = DeformableMirror(tel, nSubap=20, mechCoupling=0.35)
-wfs  = ShackHartmann(nSubap=20, telescope=tel, lightRatio=0.5)
+dm   = DeformableMirror(tel, nSubap=args.n_subap, mechCoupling=0.35)
+wfs  = ShackHartmann(nSubap=args.n_subap, telescope=tel, lightRatio=0.5)
 
 # Reset main source to clear Tip/Tilt calibration mask left by wfs.set_slopes_units()
 src.reset()
@@ -37,7 +39,7 @@ src * tel
 n_zernike = 55
 n_slopes = wfs.nSignal
 n_valid = wfs.nValidSubaperture
-sub_px = 20 # 400 / 20 = 20
+sub_px = args.resolution // args.n_subap
 
 # Load C-Engine
 lib = ct.CDLL(os.path.join(BASE, 'build', 'c_engine.so'))
@@ -52,11 +54,15 @@ src_cal.OPD_no_pupil = np.zeros((tel.resolution, tel.resolution))
 src_cal * tel * wfs
 ref_img = wfs.cam.frame.astype(np.float32)
 ref_slopes = np.zeros(n_slopes, dtype=np.float32)
+
+print(f"ref_img shape: {ref_img.shape}, len: {len(ref_img.flatten())}", flush=True)
+print(f"n_valid: {n_valid}, sub_px: {sub_px}, res: {args.resolution}", flush=True)
+
 lib.compute_slopes(
     ref_img.flatten().ctypes.data_as(ct.POINTER(ct.c_float)),
     ref_slopes.ctypes.data_as(ct.POINTER(ct.c_float)),
     valid_mask.ctypes.data_as(ct.POINTER(ct.c_int)),
-    ct.c_int(400), ct.c_int(n_valid), ct.c_int(sub_px)
+    ct.c_int(args.n_subap * args.n_subap), ct.c_int(n_valid), ct.c_int(sub_px)
 )
 
 print("Computing Zernike Basis (remove_piston = 0)...")
@@ -78,7 +84,7 @@ for i in range(n_zernike):
         poked_img.flatten().ctypes.data_as(ct.POINTER(ct.c_float)),
         slopes_buf.ctypes.data_as(ct.POINTER(ct.c_float)),
         valid_mask.ctypes.data_as(ct.POINTER(ct.c_int)),
-        ct.c_int(400), ct.c_int(n_valid), ct.c_int(sub_px)
+        ct.c_int(args.n_subap * args.n_subap), ct.c_int(n_valid), ct.c_int(sub_px)
     )
     M_Zernike[:, i] = (slopes_buf - ref_slopes) / amp
 

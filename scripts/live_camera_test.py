@@ -12,6 +12,7 @@ import argparse
 import numpy as np
 import ctypes as ct
 import time
+import matplotlib.pyplot as plt
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE)
@@ -32,6 +33,8 @@ def parse_args():
                         help="Number of frames to run before finishing.")
     parser.add_argument('--fps', type=float, default=1000.0,
                         help="Simulated camera loop rate in Hz (default: 1000.0).")
+    parser.add_argument('--soak', action='store_true',
+                        help="Run a high-volume soak test (disables verbose console I/O and calculates tail latency).")
     return parser.parse_args()
 
 def main():
@@ -55,9 +58,9 @@ def main():
     n_slopes = 2 * n_valid
     n_zernike = g_plus.shape[0]
     n_act = 357
-    sub_px = 20 # 400 / 20 = 20
+    n_sub = len(valid_mask)
     
-    print(f"Calibrated WFS: {n_valid} valid subapertures, {n_slopes} signals.")
+    print(f"Calibrated WFS: {n_valid} valid subapertures, {n_slopes} signals, {n_sub} total subapertures.")
     
     # 2. Load C-Engine
     lib = ct.CDLL(os.path.join(BASE, 'build', 'c_engine.so'))
@@ -76,7 +79,7 @@ def main():
     # 3. Setup Camera Interface
     if args.mode == 'sim':
         print(f"Spawning simulated camera thread at {args.fps} Hz loop rate with {n_zernike} Zernike modes...")
-        cam = SimulatedCameraInterface(resolution=400, diameter=8.0, n_subap=20, fps=args.fps, n_zernike=n_zernike)
+        cam = SimulatedCameraInterface(resolution=400, diameter=8.0, n_subap=int(np.sqrt(n_sub)), fps=args.fps, n_zernike=n_zernike)
     elif args.mode == 'playback':
         print(f"Spawning playback camera thread from {DATA_DIR} at {args.fps} Hz...")
         cam = PlaybackCameraInterface(data_dir=DATA_DIR, fps=args.fps)
@@ -96,6 +99,10 @@ def main():
     zlog = []
     gt_zernikes = []
     
+    if args.soak:
+        args.frames = max(args.frames, 1000) # Minimum 1000 for a test soak
+        print(f"SOAK MODE ENABLED: Running for {args.frames} frames. Console output suppressed to maximize throughput.")
+
     print("\nStarting live real-time processing loop...")
     print(f"Benchmarking {args.frames} frames. Console output updates every 50 frames:\n")
     print(f"{'Frame':<8} | {'Acq Time':<10} | {'Proc Time':<10} | {'Loop Freq':<10} | {'R2 Frame':<10} | {'Strehl':<8}")
@@ -125,15 +132,20 @@ def main():
                     break
                 t1 = time.perf_counter()
                 
-                # Wrap raw buffer address in numpy (zero-copy) and cast to float
-                raw_array = np.ctypeslib.as_array(data_ptr, shape=(400, 400))
+                # Dynamically infer resolution from raw array (assuming square if hardware)
+                res = int(np.sqrt(len(buffer) // 4)) if len(buffer) > 0 else 400
+                raw_array = np.ctypeslib.as_array(data_ptr, shape=(res, res))
                 img_flat = np.ascontiguousarray(raw_array.astype(np.float32, copy=False).flatten())
                 img_ptr = img_flat.ctypes.data_as(ct.POINTER(ct.c_float))
                 
+            # Dynamically infer resolution and sub_px based on flat array
+            res = int(np.sqrt(len(img_flat)))
+            sub_px = int(res / np.sqrt(n_sub))
+            
             t_proc_start = time.perf_counter()
             
             # Hardware configuration limits (simulated baseline)
-            bg_threshold = 2.0  # e.g., 2 ADU read noise floor
+            bg_threshold = 0.0  # e.g., 2 ADU read noise floor
             shift_x = 0.0
             shift_y = 0.0
 
@@ -142,7 +154,7 @@ def main():
                 img_ptr,
                 slopes_buf.ctypes.data_as(ct.POINTER(ct.c_float)),
                 valid_mask.ctypes.data_as(ct.POINTER(ct.c_int)),
-                ct.c_int(400), ct.c_int(n_valid), ct.c_int(sub_px),
+                ct.c_int(n_sub), ct.c_int(n_valid), ct.c_int(sub_px),
                 ct.c_float(bg_threshold), ct.c_float(shift_x), ct.c_float(shift_y)
             )
             
@@ -184,8 +196,9 @@ def main():
                 pred_no_piston = zernikes[1:]
                 true_no_piston = true_z[1:]
                 
-                ss_res_f = np.sum((pred_no_piston - true_no_piston)**2)
-                ss_tot_f = np.sum((true_no_piston - np.mean(true_no_piston))**2)
+                # Ignore piston (index 0) in accuracy metric because WFS cannot measure it
+                ss_res_f = np.sum((true_z[1:] - zernikes[1:]) ** 2)
+                ss_tot_f = np.sum((true_z[1:] - np.mean(true_z[1:])) ** 2)
                 r2_f = 1.0 - (ss_res_f / ss_tot_f) if ss_tot_f > 0 else 1.0
                 r2_per_frame.append(r2_f)
                 
@@ -197,11 +210,15 @@ def main():
                 strehl = np.nan
                 
             # Console reporting
-            if (idx + 1) % 50 == 0 or idx == 0:
-                loop_freq = 1.0 / (t_proc_end - t0)
-                r2_str = f"{r2_f*100:6.2f}%" if not np.isnan(r2_f) else "N/A"
-                strehl_str = f"{strehl:.4f}" if not np.isnan(strehl) else "N/A"
-                print(f"{idx+1:<8d} | {acq_lat:7.3f} ms | {proc_lat:7.3f} ms | {loop_freq:7.1f} Hz | {r2_str:<10} | {strehl_str:<8}")
+            if not args.soak:
+                if (idx + 1) % 50 == 0 or idx == 0:
+                    loop_freq = 1.0 / (t_proc_end - t0)
+                    r2_str = f"{r2_f*100:6.2f}%" if not np.isnan(r2_f) else "N/A"
+                    strehl_str = f"{strehl:.4f}" if not np.isnan(strehl) else "N/A"
+                    print(f"{idx+1:<8d} | {acq_lat:7.3f} ms | {proc_lat:7.3f} ms | {loop_freq:7.1f} Hz | {r2_str:<10} | {strehl_str:<8}")
+            else:
+                if (idx + 1) % 10000 == 0:
+                    print(f"Soak progress: {idx+1}/{args.frames} frames processed...")
                 
     finally:
         cam.stop_acquisition()
@@ -215,6 +232,32 @@ def main():
     print(f"Acquisition Avg Latency:         {np.mean(acq_latencies):.4f} ms")
     print(f"C-Engine Processing Avg Latency: {np.mean(proc_latencies):.4f} ms")
     print(f"Average Loop Rate:               {len(acq_latencies)/total_time:.2f} Hz")
+    
+    if args.soak:
+        p99 = np.percentile(proc_latencies, 99.0)
+        p999 = np.percentile(proc_latencies, 99.9)
+        p9999 = np.percentile(proc_latencies, 99.99)
+        print("="*75)
+        print("SOAK TEST TAIL LATENCY ANALYSIS")
+        print("="*75)
+        print(f"99.0th Percentile Latency:       {p99:.4f} ms")
+        print(f"99.9th Percentile Latency:       {p999:.4f} ms")
+        print(f"99.99th Percentile Latency:      {p9999:.4f} ms")
+        print(f"Maximum Latency Encountered:     {np.max(proc_latencies):.4f} ms")
+        
+        plt.figure(figsize=(10, 6))
+        plt.hist(proc_latencies, bins=100, color='blue', alpha=0.7, log=True)
+        plt.axvline(p99, color='r', linestyle='dashed', linewidth=1.5, label=f'99th: {p99:.3f}ms')
+        plt.axvline(p999, color='g', linestyle='dashed', linewidth=1.5, label=f'99.9th: {p999:.3f}ms')
+        plt.axvline(10.0, color='k', linestyle='solid', linewidth=2, label='10ms Deadline')
+        plt.xlabel('Processing Latency (ms)')
+        plt.ylabel('Frequency (Log Scale)')
+        plt.title(f'C-Engine Processing Latency Distribution ({args.frames} frames)')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plot_path = os.path.join(BASE, 'data', 'comparisons', 'soak_test_histogram.png')
+        plt.savefig(plot_path, dpi=150)
+        print(f"Saved latency histogram to: {plot_path}")
     
     if args.mode in ('sim', 'playback') and len(gt_zernikes) > 0:
         zlog = np.array(zlog)
