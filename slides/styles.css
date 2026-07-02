@@ -1,0 +1,72 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Inter:wght@400;500;600&family=Fira+Code&display=swap');
+
+:root {
+  --slidev-theme-primary: #4285F4;
+  --io-bg: #0F0F0F;
+  --io-card-bg: #1A1A1A;
+  --io-border: #2D2D2D;
+  --io-text: #FFFFFF;
+  --io-text-muted: #94A3B8;
+  --io-blue: #4285F4;
+  --io-red: #EA4335;
+  --io-yellow: #FBBC05;
+  --io-green: #34A853;
+}
+
+/* Core resets and backgrounds */
+.slidev-layout {
+  background-color: var(--io-bg) !important;
+  color: var(--io-text) !important;
+  font-family: 'Inter', sans-serif;
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Outfit', sans-serif;
+  color: var(--io-text);
+}
+
+h1 {
+  font-weight: 800;
+}
+
+h2 {
+  font-weight: 600;
+}
+
+/* Metric cards */
+.io-card {
+  background-color: var(--io-card-bg);
+  border: 1px solid var(--io-border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0.5rem;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.io-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--io-blue);
+}
+
+/* Custom badge callouts */
+.io-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #FFFFFF;
+}
+.io-badge-blue { background-color: var(--io-blue); }
+.io-badge-green { background-color: var(--io-green); }
+.io-badge-red { background-color: var(--io-red); }
+.io-badge-yellow { background-color: var(--io-yellow); color: #000000; }
+
+/* Giant stats styles */
+.io-giant-stat {
+  font-size: 4rem;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
