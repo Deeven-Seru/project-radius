@@ -1,16 +1,20 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Inter:wght@400;500;600&family=Fira+Code&display=swap');
 
 :root {
-  --slidev-theme-primary: #4285F4;
-  --io-bg: #0F0F0F;
-  --io-card-bg: #1A1A1A;
-  --io-border: #2D2D2D;
-  --io-text: #FFFFFF;
-  --io-text-muted: #94A3B8;
-  --io-blue: #4285F4;
-  --io-red: #EA4335;
-  --io-yellow: #FBBC05;
-  --io-green: #34A853;
+  --slidev-theme-primary: #1A73E8;
+  --io-bg: #F5F3EF;          /* Warm Paper Sand */
+  --io-card-bg: #FFFFFF;     /* Crisp white note cards */
+  --io-border: #E2E8F0;      /* Thin clean borders */
+  --io-text: #202124;        /* Dark Charcoal body */
+  --io-text-muted: #5F6368;  /* Muted Slate Gray labels */
+  --io-blue: #1A73E8;        /* Google / NotebookLM Blue */
+  --io-blue-bg: #E8F0FE;     /* Light Blue card highlight */
+  --io-red: #D93025;         /* Red warnings */
+  --io-red-bg: #FCE8E6;
+  --io-yellow: #B06000;      /* Amber highlights */
+  --io-yellow-bg: #FEF7E0;
+  --io-green: #137333;       /* Green success stats */
+  --io-green-bg: #E6F4EA;
 }
 
 /* Core resets and backgrounds */
@@ -18,6 +22,7 @@
   background-color: var(--io-bg) !important;
   color: var(--io-text) !important;
   font-family: 'Inter', sans-serif;
+  padding: 2.5rem 3rem !important;
 }
 
 h1, h2, h3, h4 {
@@ -31,42 +36,69 @@ h1 {
 
 h2 {
   font-weight: 600;
+  border-bottom: 1px solid var(--io-border);
+  padding-bottom: 0.5rem;
 }
 
-/* Metric cards */
+/* NotebookLM-style workspace cards */
 .io-card {
   background-color: var(--io-card-bg);
   border: 1px solid var(--io-border);
   border-radius: 8px;
-  padding: 1rem;
-  margin: 0.5rem;
-  transition: transform 0.2s, border-color 0.2s;
+  padding: 1.25rem;
+  margin: 0.5rem 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
 
 .io-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   border-color: var(--io-blue);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.08);
 }
 
-/* Custom badge callouts */
+/* Split workspace layout */
+.io-workspace {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 1.5rem;
+  height: 100%;
+}
+
+.io-sidebar {
+  border-right: 1px solid var(--io-border);
+  padding-right: 1rem;
+}
+
+/* Pastel badges */
 .io-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   font-weight: 600;
   font-size: 0.8rem;
-  color: #FFFFFF;
 }
-.io-badge-blue { background-color: var(--io-blue); }
-.io-badge-green { background-color: var(--io-green); }
-.io-badge-red { background-color: var(--io-red); }
-.io-badge-yellow { background-color: var(--io-yellow); color: #000000; }
+.io-badge-blue { background-color: var(--io-blue-bg); color: var(--io-blue); }
+.io-badge-green { background-color: var(--io-green-bg); color: var(--io-green); }
+.io-badge-red { background-color: var(--io-red-bg); color: var(--io-red); }
+.io-badge-yellow { background-color: var(--io-yellow-bg); color: var(--io-yellow); }
 
-/* Giant stats styles */
+/* Giant metric styles */
 .io-giant-stat {
-  font-size: 4rem;
+  font-size: 3.5rem;
   font-family: 'Outfit', sans-serif;
   font-weight: 800;
   line-height: 1;
-  margin-bottom: 0.5rem;
+  color: var(--io-text);
+}
+
+/* Inline SVG wrapper */
+.io-icon {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  vertical-align: middle;
+  fill: currentColor;
 }
