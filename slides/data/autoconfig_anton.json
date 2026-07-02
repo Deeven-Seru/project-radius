@@ -1,0 +1,19 @@
+{
+    "hardware": {
+        "os": "Linux",
+        "architecture": "x86_64",
+        "vector_isa_detected": "AVX2_FMA"
+    },
+    "optimized_settings": {
+        "centroiding_algorithm": "compute_slopes_enhanced",
+        "parameters": {
+            "bg_threshold": 15.0
+        }
+    },
+    "autotune_metadata": {
+        "cog_avg_ms": 1.0533906701020896,
+        "tcog_avg_ms": 1.2411656740587205,
+        "iwcog_avg_ms": 26.866686719935387,
+        "rationale": "Hardware resources are constrained. Thresholded CoG (TCoG) selected to guarantee real-time safety margin."
+    }
+}
