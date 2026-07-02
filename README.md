@@ -59,35 +59,57 @@ This atmospheric turbulence evolves rapidly on a timescale defined by the **Atmo
 ### 3.1 Shack-Hartmann Wavefront Sensing (SH-WFS)
 A microlens array (MLA) partitions the telescope pupil into a grid of subapertures. Each lenslet projects a focal spot onto the WFS camera. The lateral displacement $(\Delta x_k, \Delta y_k)$ of a spot from its nominal reference position is proportional to the average wavefront gradient over that subaperture:
 
-$$ \Delta x_k = \frac{f_{\text{lens}}}{\lambda} \cdot \frac{\partial \phi}{\partial x}\bigg|_{k}, \quad \Delta y_k = \frac{f_{\text{lens}}}{\lambda} \cdot \frac{\partial \phi}{\partial y}\bigg|_{k} $$
+$$
+\Delta x_k = \frac{f_{\text{lens}}}{\lambda} \cdot \frac{\partial \phi}{\partial x}\bigg|_{k}, \quad \Delta y_k = \frac{f_{\text{lens}}}{\lambda} \cdot \frac{\partial \phi}{\partial y}\bigg|_{k}
+$$
 
 where $f_{\text{lens}}$ is the microlens focal length, $\lambda$ is the wavelength, and $k$ is the subaperture index. A $20 \times 20$ MLA yields up to 400 subapertures ($316$ valid subapertures inside the circular telescope pupil), resulting in a slope vector $\vec{S}$ of dimension $632$ (X and Y components).
 
 ### 3.2 Zernike Aberration Expansion
 Following Noll (1976), the wavefront phase $\phi(\rho, \theta)$ is expanded over a circular pupil of radius $R$ in Zernike polynomials $Z_j(\rho, \theta)$:
 
-$$ \phi(\rho, \theta) = \sum_{j=1}^{N} a_j Z_j(\rho, \theta) $$
+$$
+\phi(\rho, \theta) = \sum_{j=1}^{N} a_j Z_j(\rho, \theta)
+$$
 
 where $a_j$ is the modal coefficient quantifying specific aberrations (e.g., Tip/Tilt, Defocus, Astigmatism, Coma).
 
 ### 3.3 Reconstructor Formulations
 1. **Least-Squares Reconstructor ($G^+$):** Maps slopes to Zernike coefficients using the Moore-Penrose pseudo-inverse of the interaction matrix $M$:
-   $$ \vec{a} = G^+ \vec{S} $$
+   $$
+   \vec{a} = G^+ \vec{S}
+   $$
 2. **Minimum Variance Reconstructor ($G_{\text{MVR}}$):** Standard pseudo-inverse reconstructors amplify measurement noise in insensitive modes. We implement a Bayesian Minimum Variance Reconstructor (MVR) based on the Kolmogorov Zernike covariance statistics to suppress noise:
-   $$ G_{\text{MVR}} = C_\phi M^T (M C_\phi M^T + C_N)^{-1} $$
+   $$
+   G_{\text{MVR}} = C_\phi M^T (M C_\phi M^T + C_N)^{-1}
+   $$
    Using the Woodbury matrix identity to bypass large matrix inversions:
-   $$ G_{\text{MVR}} = (\alpha C_\phi^{-1} + M^T M)^{-1} M^T $$
+   $$
+   G_{\text{MVR}} = (\alpha C_\phi^{-1} + M^T M)^{-1} M^T
+   $$
    where $C_\phi$ is the Zernike phase covariance matrix (dimension $55 \times 55$), $M$ is the forward interaction matrix, and $\alpha$ is the regularization noise variance parameter.
 3. **Zernike Decoupled Kalman Filter (Z-DKF):** Servo-lag error occurs because the turbulence drifts during exposure. We implement **55 independent, scalar Kalman filters** (one per Zernike mode) modeled as first-order autoregressive processes $AR(1)$ to predict state values one frame ahead:
    - **State Prediction**:
-     $$ \hat{z}_j(t|t-1) = a_j \hat{z}_j(t-1|t-1) $$
-     $$ P_j(t|t-1) = a_j^2 P_j(t-1|t-1) + \sigma_{w,j}^2 $$
+     $$
+     \hat{z}_j(t \mid t-1) = a_j \hat{z}_j(t-1 \mid t-1)
+     $$
+     $$
+     P_j(t \mid t-1) = a_j^2 P_j(t-1 \mid t-1) + \sigma_{w,j}^2
+     $$
    - **Measurement Update**:
-     $$ K_j(t) = \frac{ P_j(t|t-1) }{ P_j(t|t-1) + \sigma_{v,j}^2 } $$
-     $$ \hat{z}_j(t|t) = \hat{z}_j(t|t-1) + K_j(t) ( y_j(t) - \hat{z}_j(t|t-1) ) $$
-     $$ P_j(t|t) = (1 - K_j(t)) P_j(t|t-1) $$
+     $$
+     K_j(t) = \frac{ P_j(t \mid t-1) }{ P_j(t \mid t-1) + \sigma_{v,j}^2 }
+     $$
+     $$
+     \hat{z}_j(t \mid t) = \hat{z}_j(t \mid t-1) + K_j(t) ( y_j(t) - \hat{z}_j(t \mid t-1) )
+     $$
+     $$
+     P_j(t \mid t) = (1 - K_j(t)) P_j(t \mid t-1)
+     $$
    - **One-Step Prediction**:
-     $$ \hat{z}_j(t+1|t) = a_j \hat{z}_j(t|t) $$
+     $$
+     \hat{z}_j(t+1 \mid t) = a_j \hat{z}_j(t \mid t)
+     $$
    where $a_j$ is the first-lag autocorrelation, $\sigma_{w,j}^2$ is process noise, and $\sigma_{v,j}^2$ is measurement noise. This reduces the computational complexity from $O(N^3)$ to $O(N)$.
 
 ---
@@ -292,73 +314,359 @@ The focal-plane image produced by the microlens array. Displaced spots indicate 
 </p>
 
 ### 12.4 Zernike Polynomial Reference Library
-This table lists Zernike modes $Z_1$ to $Z_{15}$ oscillating in amplitude ($\pm 1.0$ normalized) over the circular pupil boundary:
+This visual reference library contains all 55 Zernike modes reconstructed by the C-Engine (radial orders $n = 0$ to $9$ in Noll indexing). Each cell shows the localized phase aberration oscillating in amplitude ($\pm 1.0$ normalized) over a circular telescope pupil boundary (shown in dark gray).
 
 <table width="100%" border="0" cellpadding="4" cellspacing="0" style="background-color: #0b0b0b; border: 1px solid #222; border-collapse: collapse;">
   <tr>
     <td align="center" valign="top" width="20%">
-      <b>Z<sub>1</sub></b> (Piston)<br>
-      <img src="assets/zernike_gifs/zernike_n0_m0.gif" width="110" height="110"><br>
+      <b>Z<sub>1</sub></b><br>
+      <code>Z<sub>0</sub><sup>0</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n0_m0.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Piston</font>
     </td>
     <td align="center" valign="top" width="20%">
-      <b>Z<sub>2</sub></b> (Tip X)<br>
-      <img src="assets/zernike_gifs/zernike_n1_m1.gif" width="110" height="110"><br>
+      <b>Z<sub>2</sub></b><br>
+      <code>Z<sub>1</sub><sup>+1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n1_m1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tip X (horizontal)</font>
     </td>
     <td align="center" valign="top" width="20%">
-      <b>Z<sub>3</sub></b> (Tilt Y)<br>
-      <img src="assets/zernike_gifs/zernike_n1_m-1.gif" width="110" height="110"><br>
+      <b>Z<sub>3</sub></b><br>
+      <code>Z<sub>1</sub><sup>-1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n1_m-1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tilt Y (vertical)</font>
     </td>
     <td align="center" valign="top" width="20%">
-      <b>Z<sub>4</sub></b> (Defocus)<br>
-      <img src="assets/zernike_gifs/zernike_n2_m0.gif" width="110" height="110"><br>
+      <b>Z<sub>4</sub></b><br>
+      <code>Z<sub>2</sub><sup>0</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n2_m0.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Defocus</font>
     </td>
     <td align="center" valign="top" width="20%">
-      <b>Z<sub>5</sub></b> (Astigmatism 45°)<br>
-      <img src="assets/zernike_gifs/zernike_n2_m-2.gif" width="110" height="110"><br>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" valign="top" width="20%">
-      <b>Z<sub>6</sub></b> (Astigmatism 0°)<br>
-      <img src="assets/zernike_gifs/zernike_n2_m2.gif" width="110" height="110"><br>
-    </td>
-    <td align="center" valign="top" width="20%">
-      <b>Z<sub>7</sub></b> (Coma Y)<br>
-      <img src="assets/zernike_gifs/zernike_n3_m-1.gif" width="110" height="110"><br>
-    </td>
-    <td align="center" valign="top" width="20%">
-      <b>Z<sub>8</sub></b> (Coma X)<br>
-      <img src="assets/zernike_gifs/zernike_n3_m1.gif" width="110" height="110"><br>
-    </td>
-    <td align="center" valign="top" width="20%">
-      <b>Z<sub>9</sub></b> (Trefoil Y)<br>
-      <img src="assets/zernike_gifs/zernike_n3_m-3.gif" width="110" height="110"><br>
-    </td>
-    <td align="center" valign="top" width="20%">
-      <b>Z<sub>10</sub></b> (Trefoil X)<br>
-      <img src="assets/zernike_gifs/zernike_n3_m3.gif" width="110" height="110"><br>
+      <b>Z<sub>5</sub></b><br>
+      <code>Z<sub>2</sub><sup>-2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n2_m-2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Astigmatism 45°</font>
     </td>
   </tr>
   <tr>
     <td align="center" valign="top" width="20%">
-      <b>Z<sub>11</sub></b> (Spherical)<br>
-      <img src="assets/zernike_gifs/zernike_n4_m0.gif" width="110" height="110"><br>
+      <b>Z<sub>6</sub></b><br>
+      <code>Z<sub>2</sub><sup>+2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n2_m2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Astigmatism 0°</font>
     </td>
     <td align="center" valign="top" width="20%">
-      <b>Z<sub>12</sub></b> (Secondary Astig. 0°)<br>
-      <img src="assets/zernike_gifs/zernike_n4_m2.gif" width="110" height="110"><br>
+      <b>Z<sub>7</sub></b><br>
+      <code>Z<sub>3</sub><sup>-1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n3_m-1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Coma Y (vertical)</font>
     </td>
     <td align="center" valign="top" width="20%">
-      <b>Z<sub>13</sub></b> (Secondary Astig. 45°)<br>
-      <img src="assets/zernike_gifs/zernike_n4_m-2.gif" width="110" height="110"><br>
+      <b>Z<sub>8</sub></b><br>
+      <code>Z<sub>3</sub><sup>+1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n3_m1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Coma X (horizontal)</font>
     </td>
     <td align="center" valign="top" width="20%">
-      <b>Z<sub>14</sub></b> (Tetrafoil Y)<br>
-      <img src="assets/zernike_gifs/zernike_n4_m4.gif" width="110" height="110"><br>
+      <b>Z<sub>9</sub></b><br>
+      <code>Z<sub>3</sub><sup>-3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n3_m-3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Trefoil Y (vertical)</font>
     </td>
     <td align="center" valign="top" width="20%">
-      <b>Z<sub>15</sub></b> (Tetrafoil X)<br>
-      <img src="assets/zernike_gifs/zernike_n4_m-4.gif" width="110" height="110"><br>
+      <b>Z<sub>10</sub></b><br>
+      <code>Z<sub>3</sub><sup>+3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n3_m3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Trefoil X (horizontal)</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>11</sub></b><br>
+      <code>Z<sub>4</sub><sup>0</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n4_m0.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Spherical Aberration</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>12</sub></b><br>
+      <code>Z<sub>4</sub><sup>+2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n4_m2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Astigmatism 0°</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>13</sub></b><br>
+      <code>Z<sub>4</sub><sup>-2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n4_m-2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Astigmatism 45°</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>14</sub></b><br>
+      <code>Z<sub>4</sub><sup>+4</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n4_m4.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tetrafoil Y (vertical)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>15</sub></b><br>
+      <code>Z<sub>4</sub><sup>-4</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n4_m-4.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tetrafoil X (horizontal)</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>16</sub></b><br>
+      <code>Z<sub>5</sub><sup>+1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n5_m1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Coma Horizontal</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>17</sub></b><br>
+      <code>Z<sub>5</sub><sup>-1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n5_m-1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Coma Vertical</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>18</sub></b><br>
+      <code>Z<sub>5</sub><sup>+3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n5_m3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Trefoil Horizontal</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>19</sub></b><br>
+      <code>Z<sub>5</sub><sup>-3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n5_m-3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Trefoil Vertical</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>20</sub></b><br>
+      <code>Z<sub>5</sub><sup>+5</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n5_m5.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Pentafoil Horizontal</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>21</sub></b><br>
+      <code>Z<sub>5</sub><sup>-5</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n5_m-5.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Pentafoil Vertical</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>22</sub></b><br>
+      <code>Z<sub>6</sub><sup>0</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n6_m0.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Spherical</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>23</sub></b><br>
+      <code>Z<sub>6</sub><sup>-2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n6_m-2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Astigmatism Y</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>24</sub></b><br>
+      <code>Z<sub>6</sub><sup>+2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n6_m2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Astigmatism X</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>25</sub></b><br>
+      <code>Z<sub>6</sub><sup>-4</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n6_m-4.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Tetrafoil Y</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>26</sub></b><br>
+      <code>Z<sub>6</sub><sup>+4</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n6_m4.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Tetrafoil X</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>27</sub></b><br>
+      <code>Z<sub>6</sub><sup>-6</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n6_m-6.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Hexafoil Y</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>28</sub></b><br>
+      <code>Z<sub>6</sub><sup>+6</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n6_m6.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Hexafoil X</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>29</sub></b><br>
+      <code>Z<sub>7</sub><sup>-1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m-1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quaternary Coma (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>30</sub></b><br>
+      <code>Z<sub>7</sub><sup>+1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quaternary Coma (Cosine)</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>31</sub></b><br>
+      <code>Z<sub>7</sub><sup>-3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m-3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Trefoil (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>32</sub></b><br>
+      <code>Z<sub>7</sub><sup>+3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Trefoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>33</sub></b><br>
+      <code>Z<sub>7</sub><sup>-5</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m-5.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Pentafoil (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>34</sub></b><br>
+      <code>Z<sub>7</sub><sup>+5</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m5.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Pentafoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>35</sub></b><br>
+      <code>Z<sub>7</sub><sup>-7</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m-7.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Heptafoil (Sine)</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>36</sub></b><br>
+      <code>Z<sub>7</sub><sup>+7</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n7_m7.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Heptafoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>37</sub></b><br>
+      <code>Z<sub>8</sub><sup>0</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m0.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Spherical</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>38</sub></b><br>
+      <code>Z<sub>8</sub><sup>+2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quaternary Astigmatism (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>39</sub></b><br>
+      <code>Z<sub>8</sub><sup>-2</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m-2.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quaternary Astigmatism (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>40</sub></b><br>
+      <code>Z<sub>8</sub><sup>+4</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m4.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Tetrafoil (Cosine)</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>41</sub></b><br>
+      <code>Z<sub>8</sub><sup>-4</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m-4.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Tetrafoil (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>42</sub></b><br>
+      <code>Z<sub>8</sub><sup>+6</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m6.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Hexafoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>43</sub></b><br>
+      <code>Z<sub>8</sub><sup>-6</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m-6.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Hexafoil (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>44</sub></b><br>
+      <code>Z<sub>8</sub><sup>+8</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m8.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Octafoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>45</sub></b><br>
+      <code>Z<sub>8</sub><sup>-8</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n8_m-8.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Octafoil (Sine)</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>46</sub></b><br>
+      <code>Z<sub>9</sub><sup>+1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quinary Coma (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>47</sub></b><br>
+      <code>Z<sub>9</sub><sup>-1</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m-1.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quinary Coma (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>48</sub></b><br>
+      <code>Z<sub>9</sub><sup>+3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quaternary Trefoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>49</sub></b><br>
+      <code>Z<sub>9</sub><sup>-3</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m-3.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Quaternary Trefoil (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>50</sub></b><br>
+      <code>Z<sub>9</sub><sup>+5</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m5.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Pentafoil (Cosine)</font>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>51</sub></b><br>
+      <code>Z<sub>9</sub><sup>-5</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m-5.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Tertiary Pentafoil (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>52</sub></b><br>
+      <code>Z<sub>9</sub><sup>+7</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m7.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Heptafoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>53</sub></b><br>
+      <code>Z<sub>9</sub><sup>-7</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m-7.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Secondary Heptafoil (Sine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>54</sub></b><br>
+      <code>Z<sub>9</sub><sup>+9</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m9.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Nonafoil (Cosine)</font>
+    </td>
+    <td align="center" valign="top" width="20%">
+      <b>Z<sub>55</sub></b><br>
+      <code>Z<sub>9</sub><sup>-9</sup></code><br>
+      <img src="assets/zernike_gifs/zernike_n9_m-9.gif" width="110" height="110" style="border-radius: 4px; margin: 4px 0;"><br>
+      <font size="1" color="#888">Nonafoil (Sine)</font>
     </td>
   </tr>
 </table>
