@@ -75,42 +75,60 @@ $$
 where $a_j$ is the modal coefficient quantifying specific aberrations (e.g., Tip/Tilt, Defocus, Astigmatism, Coma).
 
 ### 3.3 Reconstructor Formulations
-1. **Least-Squares Reconstructor ($G^+$):** Maps slopes to Zernike coefficients using the Moore-Penrose pseudo-inverse of the interaction matrix $M$:
-   $$
-   \vec{a} = G^+ \vec{S}
-   $$
-2. **Minimum Variance Reconstructor ($G_{\text{MVR}}$):** Standard pseudo-inverse reconstructors amplify measurement noise in insensitive modes. We implement a Bayesian Minimum Variance Reconstructor (MVR) based on the Kolmogorov Zernike covariance statistics to suppress noise:
-   $$
-   G_{\text{MVR}} = C_\phi M^T (M C_\phi M^T + C_N)^{-1}
-   $$
-   Using the Woodbury matrix identity to bypass large matrix inversions:
-   $$
-   G_{\text{MVR}} = (\alpha C_\phi^{-1} + M^T M)^{-1} M^T
-   $$
-   where $C_\phi$ is the Zernike phase covariance matrix (dimension $55 \times 55$), $M$ is the forward interaction matrix, and $\alpha$ is the regularization noise variance parameter.
-3. **Zernike Decoupled Kalman Filter (Z-DKF):** Servo-lag error occurs because the turbulence drifts during exposure. We implement **55 independent, scalar Kalman filters** (one per Zernike mode) modeled as first-order autoregressive processes $AR(1)$ to predict state values one frame ahead:
-   - **State Prediction**:
-     $$
-     \hat{z}_j(t \mid t-1) = a_j \hat{z}_j(t-1 \mid t-1)
-     $$
-     $$
-     P_j(t \mid t-1) = a_j^2 P_j(t-1 \mid t-1) + \sigma_{w,j}^2
-     $$
-   - **Measurement Update**:
-     $$
-     K_j(t) = \frac{ P_j(t \mid t-1) }{ P_j(t \mid t-1) + \sigma_{v,j}^2 }
-     $$
-     $$
-     \hat{z}_j(t \mid t) = \hat{z}_j(t \mid t-1) + K_j(t) ( y_j(t) - \hat{z}_j(t \mid t-1) )
-     $$
-     $$
-     P_j(t \mid t) = (1 - K_j(t)) P_j(t \mid t-1)
-     $$
-   - **One-Step Prediction**:
-     $$
-     \hat{z}_j(t+1 \mid t) = a_j \hat{z}_j(t \mid t)
-     $$
-   where $a_j$ is the first-lag autocorrelation, $\sigma_{w,j}^2$ is process noise, and $\sigma_{v,j}^2$ is measurement noise. This reduces the computational complexity from $O(N^3)$ to $O(N)$.
+
+#### Least-Squares Reconstructor ($G^+$)
+Maps slopes to Zernike coefficients using the Moore-Penrose pseudo-inverse of the interaction matrix $M$:
+
+$$
+\vec{a} = G^+ \vec{S}
+$$
+
+#### Minimum Variance Reconstructor ($G_{\text{MVR}}$)
+Standard pseudo-inverse reconstructors amplify measurement noise in insensitive modes. We implement a Bayesian Minimum Variance Reconstructor (MVR) based on the Kolmogorov Zernike covariance statistics to suppress noise:
+
+$$
+G_{\text{MVR}} = C_\phi M^T (M C_\phi M^T + C_N)^{-1}
+$$
+
+Using the Woodbury matrix identity to bypass large matrix inversions:
+
+$$
+G_{\text{MVR}} = (\alpha C_\phi^{-1} + M^T M)^{-1} M^T
+$$
+
+where $C_\phi$ is the Zernike phase covariance matrix (dimension $55 \times 55$), $M$ is the forward interaction matrix, and $\alpha$ is the regularization noise variance parameter.
+
+#### Zernike Decoupled Kalman Filter (Z-DKF)
+Servo-lag error occurs because the turbulence drifts during exposure. We implement **55 independent, scalar Kalman filters** (one per Zernike mode) modeled as first-order autoregressive processes $AR(1)$ to predict state values one frame ahead.
+
+**State Prediction**:
+
+$$
+\hat{z}_j(t \mid t-1) = a_j \hat{z}_j(t-1 \mid t-1)
+$$
+$$
+P_j(t \mid t-1) = a_j^2 P_j(t-1 \mid t-1) + \sigma_{w,j}^2
+$$
+
+**Measurement Update**:
+
+$$
+K_j(t) = \frac{ P_j(t \mid t-1) }{ P_j(t \mid t-1) + \sigma_{v,j}^2 }
+$$
+$$
+\hat{z}_j(t \mid t) = \hat{z}_j(t \mid t-1) + K_j(t) ( y_j(t) - \hat{z}_j(t \mid t-1) )
+$$
+$$
+P_j(t \mid t) = (1 - K_j(t)) P_j(t \mid t-1)
+$$
+
+**One-Step Prediction**:
+
+$$
+\hat{z}_j(t+1 \mid t) = a_j \hat{z}_j(t \mid t)
+$$
+
+where $a_j$ is the first-lag autocorrelation coefficient, $\sigma_{w,j}^2$ is the process noise variance, and $\sigma_{v,j}^2$ is the measurement noise variance. This reduces the computational complexity from $O(N^3)$ to $O(N)$.
 
 ---
 
@@ -164,16 +182,34 @@ The centroiding calculations in [slopes.c](file:///Users/deeven/Developer/Projec
 ## 6. Real-World Error Mitigation Algorithms
 
 ### 6.1 Dynamic Integration Window Shifting (Pixel Shift Correction)
-Physical shifts of the camera relative to the microlens array displace the spots, pushing them near the boundaries of their subapertures and causing spot clipping (truncation). Project Radius solves this by dynamically shifting the integration windows at the C-Engine level:
-1. The global shift $(shift\_x, shift\_y)$ is split into integer pixel offsets $(O_x, O_y)$ and subpixel residuals $(F_x, F_y)$:
-   $$ O_x = \text{round}(shift\_x), \quad O_y = \text{round}(shift\_y) $$
-   $$ F_x = shift\_x - O_x, \quad F_y = shift\_y - O_y $$
-2. The subaperture window boundaries $(\text{row0}, \text{col0})$ are shifted and clamped to the physical sensor frame bounds to prevent segmentation faults:
-   $$ \text{row0}_{\text{shifted}} = \text{clamp}(\text{row0} + O_y, 0, I_{\text{size}} - \text{sub\_px}) $$
-   $$ \text{col0}_{\text{shifted}} = \text{clamp}(\text{col0} + O_x, 0, I_{\text{size}} - \text{sub\_px}) $$
-3. Centroids are computed in the shifted windows and corrected for the remaining fractional offsets:
-   $$ s_x = cx - (shift\_x - (\text{col0}_{\text{shifted}} - \text{col0})) $$
-   $$ s_y = cy - (shift\_y - (\text{row0}_{\text{shifted}} - \text{row0})) $$
+Physical shifts of the camera relative to the microlens array displace the spots, pushing them near the boundaries of their subapertures and causing spot clipping (truncation). Project Radius solves this by dynamically shifting the integration windows at the C-Engine level.
+
+First, the global shift $(\text{shift}_x, \text{shift}_y)$ is split into integer pixel offsets $(O_x, O_y)$ and subpixel residuals $(F_x, F_y)$:
+
+$$
+O_x = \text{round}(\text{shift}_x), \quad O_y = \text{round}(\text{shift}_y)
+$$
+$$
+F_x = \text{shift}_x - O_x, \quad F_y = \text{shift}_y - O_y
+$$
+
+Next, the subaperture window boundaries $(\text{row0}, \text{col0})$ are shifted and clamped to the physical sensor frame bounds to prevent out-of-bounds memory access (segmentation faults):
+
+$$
+\text{row0}_{\text{shifted}} = \text{clamp}(\text{row0} + O_y, 0, I_{\text{size}} - \text{sub\_px})
+$$
+$$
+\text{col0}_{\text{shifted}} = \text{clamp}(\text{col0} + O_x, 0, I_{\text{size}} - \text{sub\_px})
+$$
+
+Finally, centroids are computed in the shifted windows and corrected for the remaining fractional offsets:
+
+$$
+s_x = cx - (\text{shift}_x - (\text{col0}_{\text{shifted}} - \text{col0}))
+$$
+$$
+s_y = cy - (\text{shift}_y - (\text{row0}_{\text{shifted}} - \text{row0}))
+$$
 
 ### 6.2 Glitch-Resistant Input Sanitization
 The centroiding loops in [slopes.c](file:///Users/deeven/Developer/Project%20Radius/src/c_engine/slopes.c) filter out corrupted pixel intensities on the fly:
@@ -227,20 +263,29 @@ The tuner profiles Standard CoG, Thresholded CoG (TCoG), and Iterative Weighted 
 We evaluated the C-Engine on a 500-frame extreme turbulence validation dataset ($r_0 = 7.0\text{ cm}$ and $25\text{ m/s}$ winds):
 
 ### Latency Profiles (Average Per Frame)
-| Processing Stage | Scalar Fallback | Vectorized (SIMD) | Latency Reduction |
-| :--- | :--- | :--- | :--- |
-| **Centroiding (Slopes)** | 198.00 microseconds | **43.20 microseconds** | **4.58x Speedup** |
-| **Zernike Reconstruction** | 25.00 microseconds | **15.00 microseconds** | 1.66x Speedup |
-| **DM Actuator Mapping** | 20.00 microseconds | **8.00 microseconds** | 2.50x Speedup |
-| **Z-DKF Kalman Filter** | — | **0.50 microseconds** | Newly Added |
-| **Total Pipeline Loop** | **243.00 microseconds** | **66.70 microseconds** | **3.64x Reduction** |
+
+| Processing Stage | Scalar Fallback | Vectorized (SIMD) | Latency Reduction | Visual Latency Reduction |
+| :--- | :--- | :--- | :--- | :--- |
+| **Centroiding (Slopes)** | 198.00 $\mu\text{s}$ | **43.20 $\mu\text{s}$** | **4.58x Speedup** | <svg width="100" height="10"><rect width="100" height="10" fill="#e57373" rx="4"/><rect width="22" height="10" fill="#81c784" rx="4"/></svg> |
+| **Zernike Reconstruction** | 25.00 $\mu\text{s}$ | **15.00 $\mu\text{s}$** | 1.66x Speedup | <svg width="100" height="10"><rect width="100" height="10" fill="#e57373" rx="4"/><rect width="60" height="10" fill="#81c784" rx="4"/></svg> |
+| **DM Actuator Mapping** | 20.00 $\mu\text{s}$ | **8.00 $\mu\text{s}$** | 2.50x Speedup | <svg width="100" height="10"><rect width="100" height="10" fill="#e57373" rx="4"/><rect width="40" height="10" fill="#81c784" rx="4"/></svg> |
+| **Z-DKF Kalman Filter** | — | **0.50 $\mu\text{s}$** | Newly Added | <svg width="100" height="10"><rect width="5" height="10" fill="#81c784" rx="4"/></svg> |
+| **Total Pipeline Loop** | **243.00 $\mu\text{s}$** | **66.70 $\mu\text{s}$** | **3.64x Reduction** | <svg width="100" height="10"><rect width="100" height="10" fill="#d32f2f" rx="4"/><rect width="27" height="10" fill="#388e3c" rx="4"/></svg> |
 
 ### Wavefront Reconstitution Accuracy ($R^2$ Score)
-| Configuration | Temporal $R^2$ Accuracy | Spatial $R^2$ Accuracy | Latency |
-| :--- | :--- | :--- | :--- |
-| **Standard Reconstructor ($G^+$)** | 98.1934% | 99.3727% | 0.2245 ms |
-| **MVR Reconstructor** | **98.1938%** | **99.3727%** | **0.0952 ms** |
-| **MVR + Kalman Filter (Z-DKF)** | 96.5367% | 98.8544% | 0.1188 ms |
+
+| Configuration | Temporal $R^2$ Accuracy | Spatial $R^2$ Accuracy | Latency | Visual Accuracy Profile (Temporal) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Standard Reconstructor ($G^+$)** | 98.1934% | 99.3727% | 0.2245 ms | <svg width="100" height="10"><rect width="100" height="10" fill="#e0e0e0" rx="4"/><rect width="98" height="10" fill="#2196f3" rx="4"/></svg> |
+| **MVR Reconstructor** | **98.1938%** | **99.3727%** | **0.0952 ms** | <svg width="100" height="10"><rect width="100" height="10" fill="#e0e0e0" rx="4"/><rect width="98" height="10" fill="#2196f3" rx="4"/></svg> |
+| **MVR + Kalman Filter (Z-DKF)** | 96.5367% | 98.8544% | 0.1188 ms | <svg width="100" height="10"><rect width="100" height="10" fill="#e0e0e0" rx="4"/><rect width="96" height="10" fill="#2196f3" rx="4"/></svg> |
+
+### Validation Performance Plot
+Below is the Zernike tracking comparison chart showing Z-DKF prediction and MVR reconstruction tracking the dynamic ground-truth aberrations under extreme turbulence:
+
+<p align="center">
+  <img src="data/comparisons/validation_zernike_comparison.png" alt="Validation Zernike Tracking Comparison" width="600">
+</p>
 
 ---
 
@@ -257,6 +302,14 @@ To evaluate the C-Engine under realistic environmental hazards, we executed a ri
     *   *Maximum Latency Peak*: **0.4649 ms**
 *   **Accuracy under Noise**: The pipeline achieved a global temporal $R^2$ accuracy of **$85.3937\%$** under continuous 5.0 ADU readout noise, limiting the accuracy loss to $13.3\%$ compared to a noiseless reference.
 *   **Memory Growth**: Net memory growth of **0.000 MB** over 100,000 iterations, confirming leak-free operations.
+
+### Soak Test Visualizations
+The performance charts below show the latency jitter histogram on the target hardware and the robustness sweep curves for varying noise and shift levels:
+
+<p align="center">
+  <img src="data/comparisons/soak_test_histogram.png" alt="Soak Test Latency Jitter Histogram" width="450">
+  <img src="data/comparisons/robustness_analysis.png" alt="Readout and Photon Noise Robustness curves" width="450">
+</p>
 
 ---
 
