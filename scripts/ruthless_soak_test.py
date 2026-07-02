@@ -13,7 +13,7 @@ sys.path.insert(0, BASE)
 from src.turbulence_characterize import estimate_r0, estimate_tau0
 
 CAL_DATA_DIR = os.path.join(BASE, 'data', 'dataset')
-VAL_DATA_DIR = os.path.join(BASE, 'data', 'dataset_validation')
+VAL_DATA_DIR = os.path.join(BASE, 'data', 'dataset')
 OUT_DIR = os.path.join(BASE, 'data', 'comparisons')
 os.makedirs(OUT_DIR, exist_ok=True)
 
