@@ -193,13 +193,13 @@ $$
 F_x = \text{shift}_x - O_x, \quad F_y = \text{shift}_y - O_y
 $$
 
-Next, the subaperture window boundaries $(\text{row0}, \text{col0})$ are shifted and clamped to the physical sensor frame bounds to prevent out-of-bounds memory access (segmentation faults):
+Next, the subaperture window boundaries $(\text{row0}, \text{col0})$ are shifted and clamped to the physical sensor frame bounds to prevent out-of-bounds memory access (segmentation faults), where $W_{\text{sub}}$ is the subaperture width ($20$ pixels) and $I_{\text{size}}$ is the detector resolution ($400$ pixels):
 
 $$
-\text{row0}_{\text{shifted}} = \text{clamp}(\text{row0} + O_y, 0, I_{\text{size}} - \text{sub\_px})
+\text{row0}_{\text{shifted}} = \text{clamp}(\text{row0} + O_y, 0, I_{\text{size}} - W_{\text{sub}})
 $$
 $$
-\text{col0}_{\text{shifted}} = \text{clamp}(\text{col0} + O_x, 0, I_{\text{size}} - \text{sub\_px})
+\text{col0}_{\text{shifted}} = \text{clamp}(\text{col0} + O_x, 0, I_{\text{size}} - W_{\text{sub}})
 $$
 
 Finally, centroids are computed in the shifted windows and corrected for the remaining fractional offsets:
@@ -264,21 +264,21 @@ We evaluated the C-Engine on a 500-frame extreme turbulence validation dataset (
 
 ### Latency Profiles (Average Per Frame)
 
-| Processing Stage | Scalar Fallback | Vectorized (SIMD) | Latency Reduction | Visual Latency Reduction |
-| :--- | :--- | :--- | :--- | :--- |
-| **Centroiding (Slopes)** | 198.00 $\mu\text{s}$ | **43.20 $\mu\text{s}$** | **4.58x Speedup** | <svg width="100" height="10"><rect width="100" height="10" fill="#e57373" rx="4"/><rect width="22" height="10" fill="#81c784" rx="4"/></svg> |
-| **Zernike Reconstruction** | 25.00 $\mu\text{s}$ | **15.00 $\mu\text{s}$** | 1.66x Speedup | <svg width="100" height="10"><rect width="100" height="10" fill="#e57373" rx="4"/><rect width="60" height="10" fill="#81c784" rx="4"/></svg> |
-| **DM Actuator Mapping** | 20.00 $\mu\text{s}$ | **8.00 $\mu\text{s}$** | 2.50x Speedup | <svg width="100" height="10"><rect width="100" height="10" fill="#e57373" rx="4"/><rect width="40" height="10" fill="#81c784" rx="4"/></svg> |
-| **Z-DKF Kalman Filter** | — | **0.50 $\mu\text{s}$** | Newly Added | <svg width="100" height="10"><rect width="5" height="10" fill="#81c784" rx="4"/></svg> |
-| **Total Pipeline Loop** | **243.00 $\mu\text{s}$** | **66.70 $\mu\text{s}$** | **3.64x Reduction** | <svg width="100" height="10"><rect width="100" height="10" fill="#d32f2f" rx="4"/><rect width="27" height="10" fill="#388e3c" rx="4"/></svg> |
+| Processing Stage | Scalar Fallback | Vectorized (SIMD) | Latency Reduction |
+| :--- | :--- | :--- | :--- |
+| **Centroiding (Slopes)** | 198.00 $\mu\text{s}$ | **43.20 $\mu\text{s}$** | **4.58x Speedup** |
+| **Zernike Reconstruction** | 25.00 $\mu\text{s}$ | **15.00 $\mu\text{s}$** | 1.66x Speedup |
+| **DM Actuator Mapping** | 20.00 $\mu\text{s}$ | **8.00 $\mu\text{s}$** | 2.50x Speedup |
+| **Z-DKF Kalman Filter** | — | **0.50 $\mu\text{s}$** | Newly Added |
+| **Total Pipeline Loop** | **243.00 $\mu\text{s}$** | **66.70 $\mu\text{s}$** | **3.64x Reduction** |
 
 ### Wavefront Reconstitution Accuracy ($R^2$ Score)
 
-| Configuration | Temporal $R^2$ Accuracy | Spatial $R^2$ Accuracy | Latency | Visual Accuracy Profile (Temporal) |
-| :--- | :--- | :--- | :--- | :--- |
-| **Standard Reconstructor ($G^+$)** | 98.1934% | 99.3727% | 0.2245 ms | <svg width="100" height="10"><rect width="100" height="10" fill="#e0e0e0" rx="4"/><rect width="98" height="10" fill="#2196f3" rx="4"/></svg> |
-| **MVR Reconstructor** | **98.1938%** | **99.3727%** | **0.0952 ms** | <svg width="100" height="10"><rect width="100" height="10" fill="#e0e0e0" rx="4"/><rect width="98" height="10" fill="#2196f3" rx="4"/></svg> |
-| **MVR + Kalman Filter (Z-DKF)** | 96.5367% | 98.8544% | 0.1188 ms | <svg width="100" height="10"><rect width="100" height="10" fill="#e0e0e0" rx="4"/><rect width="96" height="10" fill="#2196f3" rx="4"/></svg> |
+| Configuration | Temporal $R^2$ Accuracy | Spatial $R^2$ Accuracy | Latency |
+| :--- | :--- | :--- | :--- |
+| **Standard Reconstructor ($G^+$)** | 98.1934% | 99.3727% | 0.2245 ms |
+| **MVR Reconstructor** | **98.1938%** | **99.3727%** | **0.0952 ms** |
+| **MVR + Kalman Filter (Z-DKF)** | 96.5367% | 98.8544% | 0.1188 ms |
 
 ### Validation Performance Plot
 Below is the Zernike tracking comparison chart showing Z-DKF prediction and MVR reconstruction tracking the dynamic ground-truth aberrations under extreme turbulence:
