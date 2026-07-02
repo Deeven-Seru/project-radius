@@ -45,7 +45,8 @@ void compute_slopes(const float *img_data,
 /**
  * compute_slopes_weighted - Weighted center-of-gravity with per-subap thresholding
  *                         and background subtraction. Adds weight exponent and
- *                         threshold multiplier to improve robustness.
+ *                         threshold multiplier to improve robustness. Dynamic window
+ *                         shifting is applied to compensate for pixel grid shifts.
  */
 void compute_slopes_weighted(const float *img_data,
                             float       *slopes,
@@ -60,20 +61,36 @@ void compute_slopes_weighted(const float *img_data,
                             float        thr_mul)
 {
     int N_1d = (int)sqrt((double)n_sub);
-    int img_cols = sub_px * N_1d;
+    int img_size = sub_px * N_1d;
+    int img_cols = img_size;
     int valid_idx = 0;
+
+    int offset_x = (int)roundf(shift_x);
+    int offset_y = (int)roundf(shift_y);
 
     for (int k = 0; k < n_sub; k++) {
         if (!valid_mask[k]) continue;
         int row0 = (k / N_1d) * sub_px;
         int col0 = (k % N_1d) * sub_px;
+
+        int row0_shifted = row0 + offset_y;
+        int col0_shifted = col0 + offset_x;
+
+        if (row0_shifted < 0) row0_shifted = 0;
+        if (row0_shifted > img_size - sub_px) row0_shifted = img_size - sub_px;
+        if (col0_shifted < 0) col0_shifted = 0;
+        if (col0_shifted > img_size - sub_px) col0_shifted = img_size - sub_px;
+
+        float local_shift_x = shift_x - (float)(col0_shifted - col0);
+        float local_shift_y = shift_y - (float)(row0_shifted - row0);
+
         float sum_I = 0.0f, sum_xI = 0.0f, sum_yI = 0.0f;
         float vals[2048];
         int idx = 0;
         float mean = 0.0f;
         for (int dy = 0; dy < sub_px; dy++) {
             for (int dx = 0; dx < sub_px; dx++) {
-                float I = img_data[(row0+dy)*img_cols + (col0+dx)];
+                float I = img_data[(row0_shifted+dy)*img_cols + (col0_shifted+dx)];
                 float v = I - bg_threshold;
                 if (v < 0.0f) v = 0.0f;
                 vals[idx++] = v;
@@ -106,8 +123,8 @@ void compute_slopes_weighted(const float *img_data,
 
         float cx = (sum_I > 0.0f) ? sum_xI/sum_I : (sub_px - 1.0f)*0.5f;
         float cy = (sum_I > 0.0f) ? sum_yI/sum_I : (sub_px - 1.0f)*0.5f;
-        slopes[valid_idx]           = cx - shift_x;
-        slopes[valid_idx + n_valid] = cy - shift_y;
+        slopes[valid_idx]           = cx - local_shift_x;
+        slopes[valid_idx + n_valid] = cy - local_shift_y;
         valid_idx++;
     }
 }
@@ -126,8 +143,12 @@ void compute_slopes_enhanced_avx2(const float *img_data,
                                   float        shift_y)
 {
     int N_1d = (int)sqrt((double)n_sub);
-    int img_cols = sub_px * N_1d;
+    int img_size = sub_px * N_1d;
+    int img_cols = img_size;
     int valid_idx = 0;
+
+    int offset_x = (int)roundf(shift_x);
+    int offset_y = (int)roundf(shift_y);
 
     __m256 zero_vec = _mm256_setzero_ps();
     __m256 bg_vec = _mm256_set1_ps(bg_threshold);
@@ -139,13 +160,24 @@ void compute_slopes_enhanced_avx2(const float *img_data,
         int row0 = (k / N_1d) * sub_px;
         int col0 = (k % N_1d) * sub_px;
 
+        int row0_shifted = row0 + offset_y;
+        int col0_shifted = col0 + offset_x;
+
+        if (row0_shifted < 0) row0_shifted = 0;
+        if (row0_shifted > img_size - sub_px) row0_shifted = img_size - sub_px;
+        if (col0_shifted < 0) col0_shifted = 0;
+        if (col0_shifted > img_size - sub_px) col0_shifted = img_size - sub_px;
+
+        float local_shift_x = shift_x - (float)(col0_shifted - col0);
+        float local_shift_y = shift_y - (float)(row0_shifted - row0);
+
         __m256 sum_I_vec = zero_vec;
         __m256 sum_xI_vec = zero_vec;
         __m256 sum_yI_vec = zero_vec;
 
         for (int dy = 0; dy < sub_px; dy++) {
             __m256 dy_vec = _mm256_set1_ps((float)dy);
-            const float *row_ptr = img_data + (row0 + dy) * img_cols + col0;
+            const float *row_ptr = img_data + (row0_shifted + dy) * img_cols + col0_shifted;
 
             for (int dx = 0; dx < sub_px; dx += 8) {
                 __m256 I = _mm256_loadu_ps(row_ptr + dx);
@@ -185,8 +217,8 @@ void compute_slopes_enhanced_avx2(const float *img_data,
         float cx = (sum_I > 0.0f) ? sum_xI / sum_I : (sub_px - 1.0f) * 0.5f;
         float cy = (sum_I > 0.0f) ? sum_yI / sum_I : (sub_px - 1.0f) * 0.5f;
 
-        slopes[valid_idx]           = cx - shift_x;
-        slopes[valid_idx + n_valid] = cy - shift_y;
+        slopes[valid_idx]           = cx - local_shift_x;
+        slopes[valid_idx + n_valid] = cy - local_shift_y;
         valid_idx++;
     }
 }
@@ -203,8 +235,12 @@ void compute_slopes_enhanced_neon(const float *img_data,
                                   float        shift_y)
 {
     int N_1d = (int)sqrt((double)n_sub);
-    int img_cols = sub_px * N_1d;
+    int img_size = sub_px * N_1d;
+    int img_cols = img_size;
     int valid_idx = 0;
+
+    int offset_x = (int)roundf(shift_x);
+    int offset_y = (int)roundf(shift_y);
 
     float32x4_t zero_vec = vdupq_n_f32(0.0f);
     float32x4_t bg_vec = vdupq_n_f32(bg_threshold);
@@ -216,13 +252,24 @@ void compute_slopes_enhanced_neon(const float *img_data,
         int row0 = (k / N_1d) * sub_px;
         int col0 = (k % N_1d) * sub_px;
 
+        int row0_shifted = row0 + offset_y;
+        int col0_shifted = col0 + offset_x;
+
+        if (row0_shifted < 0) row0_shifted = 0;
+        if (row0_shifted > img_size - sub_px) row0_shifted = img_size - sub_px;
+        if (col0_shifted < 0) col0_shifted = 0;
+        if (col0_shifted > img_size - sub_px) col0_shifted = img_size - sub_px;
+
+        float local_shift_x = shift_x - (float)(col0_shifted - col0);
+        float local_shift_y = shift_y - (float)(row0_shifted - row0);
+
         float32x4_t sum_I_vec = zero_vec;
         float32x4_t sum_xI_vec = zero_vec;
         float32x4_t sum_yI_vec = zero_vec;
 
         for (int dy = 0; dy < sub_px; dy++) {
             float32x4_t dy_vec = vdupq_n_f32((float)dy);
-            const float *row_ptr = img_data + (row0 + dy) * img_cols + col0;
+            const float *row_ptr = img_data + (row0_shifted + dy) * img_cols + col0_shifted;
 
             for (int dx = 0; dx < sub_px; dx += 4) {
                 float32x4_t I = vld1q_f32(row_ptr + dx);
@@ -251,8 +298,8 @@ void compute_slopes_enhanced_neon(const float *img_data,
         float cx = (sum_I > 0.0f) ? sum_xI / sum_I : (sub_px - 1.0f) * 0.5f;
         float cy = (sum_I > 0.0f) ? sum_yI / sum_I : (sub_px - 1.0f) * 0.5f;
 
-        slopes[valid_idx]           = cx - shift_x;
-        slopes[valid_idx + n_valid] = cy - shift_y;
+        slopes[valid_idx]           = cx - local_shift_x;
+        slopes[valid_idx + n_valid] = cy - local_shift_y;
         valid_idx++;
     }
 }
@@ -287,17 +334,33 @@ void compute_slopes_enhanced(const float *img_data,
 
     // Fallback: Scalar Implementation
     int N_1d = (int)sqrt((double)n_sub);
-    int img_cols = sub_px * N_1d;
+    int img_size = sub_px * N_1d;
+    int img_cols = img_size;
     int valid_idx = 0;
+
+    int offset_x = (int)roundf(shift_x);
+    int offset_y = (int)roundf(shift_y);
 
     for (int k = 0; k < n_sub; k++) {
         if (!valid_mask[k]) continue;
         int row0 = (k / N_1d) * sub_px;
         int col0 = (k % N_1d) * sub_px;
+
+        int row0_shifted = row0 + offset_y;
+        int col0_shifted = col0 + offset_x;
+
+        if (row0_shifted < 0) row0_shifted = 0;
+        if (row0_shifted > img_size - sub_px) row0_shifted = img_size - sub_px;
+        if (col0_shifted < 0) col0_shifted = 0;
+        if (col0_shifted > img_size - sub_px) col0_shifted = img_size - sub_px;
+
+        float local_shift_x = shift_x - (float)(col0_shifted - col0);
+        float local_shift_y = shift_y - (float)(row0_shifted - row0);
+
         float sum_I = 0.0f, sum_xI = 0.0f, sum_yI = 0.0f;
         for (int dy = 0; dy < sub_px; dy++) {
             for (int dx = 0; dx < sub_px; dx++) {
-                float I = img_data[(row0+dy)*img_cols + (col0+dx)];
+                float I = img_data[(row0_shifted+dy)*img_cols + (col0_shifted+dx)];
                 // Glitch-resistant input sanitization
                 if (isnan(I) || isinf(I) || I < 0.0f || I > 10000.0f) {
                     I = bg_threshold;
@@ -312,12 +375,11 @@ void compute_slopes_enhanced(const float *img_data,
         float cx = (sum_I > 0.0f) ? sum_xI/sum_I : (sub_px - 1.0f)*0.5f;
         float cy = (sum_I > 0.0f) ? sum_yI/sum_I : (sub_px - 1.0f)*0.5f;
         
-        slopes[valid_idx]           = cx - shift_x;
-        slopes[valid_idx + n_valid] = cy - shift_y;
+        slopes[valid_idx]           = cx - local_shift_x;
+        slopes[valid_idx + n_valid] = cy - local_shift_y;
         valid_idx++;
     }
 }
-
 
 /**
  * compute_slopes_iwcog - Iteratively Weighted Center of Gravity (IWCoG)
@@ -336,19 +398,34 @@ void compute_slopes_iwcog(const float *img_data,
                           float        shift_y)
 {
     int N_1d = (int)sqrt((double)n_sub);
-    int img_cols = sub_px * N_1d;
+    int img_size = sub_px * N_1d;
+    int img_cols = img_size;
     int valid_idx = 0;
+
+    int offset_x = (int)roundf(shift_x);
+    int offset_y = (int)roundf(shift_y);
 
     for (int k = 0; k < n_sub; k++) {
         if (!valid_mask[k]) continue;
         int row0 = (k / N_1d) * sub_px;
         int col0 = (k % N_1d) * sub_px;
+
+        int row0_shifted = row0 + offset_y;
+        int col0_shifted = col0 + offset_x;
+
+        if (row0_shifted < 0) row0_shifted = 0;
+        if (row0_shifted > img_size - sub_px) row0_shifted = img_size - sub_px;
+        if (col0_shifted < 0) col0_shifted = 0;
+        if (col0_shifted > img_size - sub_px) col0_shifted = img_size - sub_px;
+
+        float local_shift_x = shift_x - (float)(col0_shifted - col0);
+        float local_shift_y = shift_y - (float)(row0_shifted - row0);
         
         // Initial CoG (Thresholded)
         float sum_I = 0.0f, sum_xI = 0.0f, sum_yI = 0.0f;
         for (int dy = 0; dy < sub_px; dy++) {
             for (int dx = 0; dx < sub_px; dx++) {
-                float I = img_data[(row0+dy)*img_cols + (col0+dx)];
+                float I = img_data[(row0_shifted+dy)*img_cols + (col0_shifted+dx)];
                 float val = I - bg_threshold;
                 if (val < 0.0f) val = 0.0f;
                 sum_I  += val;
@@ -380,7 +457,7 @@ void compute_slopes_iwcog(const float *img_data,
 
             for (int dy = min_y; dy < max_y; dy++) {
                 for (int dx = min_x; dx < max_x; dx++) {
-                    float I = img_data[(row0+dy)*img_cols + (col0+dx)];
+                    float I = img_data[(row0_shifted+dy)*img_cols + (col0_shifted+dx)];
                     float v = I - bg_threshold;
                     if (v < 0.0f) v = 0.0f;
                     
@@ -409,10 +486,11 @@ void compute_slopes_iwcog(const float *img_data,
             }
         }
         
-        slopes[valid_idx]           = cx - shift_x;
-        slopes[valid_idx + n_valid] = cy - shift_y;
+        slopes[valid_idx]           = cx - local_shift_x;
+        slopes[valid_idx + n_valid] = cy - local_shift_y;
         valid_idx++;
     }
 }
+
 
 
